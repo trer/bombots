@@ -4,8 +4,8 @@ import numpy as np
 import pygame as pg
 import random
 import sys
-from examples.agent_random import RandomAgent
-from agent_template import GeneralAgent
+from NOP import NopAgent
+from agent_that_does_not_suicide import BeatNopAgent
 
 
 if '--novid' in sys.argv: 
@@ -18,8 +18,8 @@ pg.init()
 screen = pg.display.set_mode((cell_scale * 12 * 4, cell_scale * 12 * 4))            
 envs = [bb.Bombots(scale=cell_scale, framerate=0, standalone=False) for _ in range(4 * 4)]
 
-agents_a = [GeneralAgent(env) for env in envs]
-agents_b = [GeneralAgent(env) for env in envs]
+agents_a = [BeatNopAgent(env) for env in envs]
+agents_b = [NopAgent(env) for env in envs]
 
 if '--test' not in sys.argv:
     states_a = [env.reset()[0] for env in envs]
