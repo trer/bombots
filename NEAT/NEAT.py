@@ -10,6 +10,8 @@ import neat
 import numpy as np
 
 # 2-input XOR inputs and expected outputs.
+from bombots.environment import Bombots
+
 xor_inputs = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
 xor_outputs = [   (0.0,),     (1.0,),     (1.0,),     (0.0,)]
 
@@ -34,13 +36,31 @@ class NeatAgent:
                 genome.fitness -= (output[0] - xo[0]) ** 2
 
     def act(self, state, reward, done, info):
+
         self.states.append(state)
         state = np.copy(state)
         me_cords, opponent_cords, map = self.prep_state(state)
         s = np.concatenate((me_cords, opponent_cords))
         s = np.concatenate((s, map))
         output = self.net.activate(s)
-        output = math.floor(output[0]*6)
+        # Get agent coordinates from dictionary
+        x, y = np.where(state[0] == 1)
+        x, y = x[0], y[0]
+
+        # Combine box map and wall map into one collision matrix (as both are solid)
+        solid_map = np.logical_or(self.env.box_map, self.env.wall_map)
+        if x + 1 not in range(0, self.env.width) or solid_map[x + 1][y] == 1: output[3] = -2
+        if x - 1 not in range(0, self.env.width) or solid_map[x - 1][y] == 1: output[4] = -2
+        if y + 1 not in range(0, self.env.height) or solid_map[x][y + 1] == 1: output[2] = -2
+        if y - 1 not in range(0, self.env.height) or solid_map[x][y - 1] == 1: output[1] = -2
+        output = np.argmax(output)
+        #print(output)
+
+        #output = math.floor((output[0]+1)*3)
+        #if output[0] >= 1 and output[0] >= 4:
+        #    print(f"niceoutput bro: {output}")
+        #else:
+        #    print("sucky sucky")
         if output == 0:
             output = self.env.BOMB
         elif output == 1:

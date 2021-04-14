@@ -37,9 +37,9 @@ class BeatNopAgent:
         for bomb in lst:
             if bomb.size == 0:
                 break
-            for i in range(0, self.env.w):
+            for i in range(0, self.env.width):
                 self.danger_zone[(i, bomb[1])] = 6
-            for i in range(0, self.env.h):
+            for i in range(0, self.env.height):
                 self.danger_zone[(bomb[0], i)] = 6
 
     def act(self, state, reward, done, info):
@@ -65,15 +65,15 @@ class BeatNopAgent:
 
 
         if self.pos not in danger_zone:
-            if x + 1 in range(0, self.env.w) and solid_map[x + 1][y] == 0 and (x+1, y) not in danger_zone: possible_moves.append(Bombots.RIGHT)
-            if x - 1 in range(0, self.env.w) and solid_map[x - 1][y] == 0 and (x-1, y) not in danger_zone: possible_moves.append(Bombots.LEFT)
-            if y + 1 in range(0, self.env.h) and solid_map[x][y + 1] == 0 and (x, y+1) not in danger_zone: possible_moves.append(Bombots.DOWN)
-            if y - 1 in range(0, self.env.h) and solid_map[x][y - 1] == 0 and (x, y-1) not in danger_zone: possible_moves.append(Bombots.UP)
+            if x + 1 in range(0, self.env.width) and solid_map[x + 1][y] == 0 and (x+1, y) not in danger_zone: possible_moves.append(Bombots.RIGHT)
+            if x - 1 in range(0, self.env.width) and solid_map[x - 1][y] == 0 and (x-1, y) not in danger_zone: possible_moves.append(Bombots.LEFT)
+            if y + 1 in range(0, self.env.height) and solid_map[x][y + 1] == 0 and (x, y+1) not in danger_zone: possible_moves.append(Bombots.DOWN)
+            if y - 1 in range(0, self.env.height) and solid_map[x][y - 1] == 0 and (x, y-1) not in danger_zone: possible_moves.append(Bombots.UP)
         else:
-            if x + 1 in range(0, self.env.w) and solid_map[x + 1][y] == 0: possible_moves.append(Bombots.RIGHT)
-            if x - 1 in range(0, self.env.w) and solid_map[x - 1][y] == 0: possible_moves.append(Bombots.LEFT)
-            if y + 1 in range(0, self.env.h) and solid_map[x][y + 1] == 0: possible_moves.append(Bombots.DOWN)
-            if y - 1 in range(0, self.env.h) and solid_map[x][y - 1] == 0: possible_moves.append(Bombots.UP)
+            if x + 1 in range(0, self.env.width) and solid_map[x + 1][y] == 0: possible_moves.append(Bombots.RIGHT)
+            if x - 1 in range(0, self.env.width) and solid_map[x - 1][y] == 0: possible_moves.append(Bombots.LEFT)
+            if y + 1 in range(0, self.env.height) and solid_map[x][y + 1] == 0: possible_moves.append(Bombots.DOWN)
+            if y - 1 in range(0, self.env.height) and solid_map[x][y - 1] == 0: possible_moves.append(Bombots.UP)
 
         # If standing on a bomb [Just an example, not used here]
 

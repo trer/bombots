@@ -198,12 +198,11 @@ class Bombots(gym.Env):
         
         return states
 
-    def generate_map(self, seed=0):
+    def generate_map(self):
         self.wall_map = np.zeros(self.dimensions) # walls
         self.box_map = np.zeros(self.dimensions)
         self.fire_map = np.zeros(self.dimensions)
-        
-        random.seed(seed)
+
 
         start_area = [pos for pos in self.start_pos]
         for pos in self.start_pos:

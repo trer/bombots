@@ -57,26 +57,26 @@ def eval_genomes(genomes, config):
                     if not np.array_equal(states[i], last[i]):
                         same = False
                         break
-                if same == last:
-                    genome.fitness -= 0.001
+                if same:
+                    genome.fitness -= 0.1
                 else:
-                    if genome.fitness < 5:
-                        genome.fitness += 0.001
+                    if genome.fitness < 30:
+                        genome.fitness += 1
                     if not np.array_equal(states[0][4], last[0][4]):
                         print("It placed a bomb and it exploded something")
-                        genome.fitness += 0.1
+                        genome.fitness += 50
             last = states
 
             #env.render()  # Comment out this call to train faster
 
             if done:
-                print(done)
-                print(info)
-                if player1_wins != info['player1_wins']:
-                    genome.fitness += 100
+                #print(done)
+                #print(info)
+                if player1_wins != info['player1']['wins']:
+                    genome.fitness += 1000
                     player1_wins = info['player1_wins']
                 else:
-                    genome.fitness -= 3
+                    genome.fitness -= 10
 
 
 winner = p.run(eval_genomes, 5)
