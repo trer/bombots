@@ -3,12 +3,11 @@ import sys
 import numpy as np
 
 sys.path.append("..")
-from environment.bombots import Bombots
+from bombots.environment import Bombots
 from collections import Counter
 
 
 class BeatNopAgent:
-
 
     def __init__(self, env):
         self.env = env
