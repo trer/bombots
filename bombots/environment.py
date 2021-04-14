@@ -22,33 +22,47 @@ from .texman import TexMan
 class Bombots(gym.Env):
     NOP, UP, DOWN, LEFT, RIGHT, BOMB = range(6)
     NO_RENDER, RENDER_GFX_RGB, RENDER_GFX_GRAY, RENDER_SIMPLE = range(4)
-    STATE_IMG, STATE_DICT, STATE_TENSOR = range(3) 
+    STATE_IMG, STATE_DICT, STATE_TENSOR = range(3)
 
-    def __init__(self, dimensions=(11, 11), render_mode=RENDER_GFX_RGB, state_mode=STATE_TENSOR, framerate=20, scale=32, start_pos=[(1, 1), (9, 9)], show_fps=False, standalone=True, verbose=True):
+    def __init__(self, dimensions=(11, 11), render_mode=RENDER_GFX_RGB, state_mode=STATE_TENSOR,
+                 framerate=20, scale=32, show_fps=False, standalone=True, verbose=True):
+
+        start_pos = [(1, 1), (9, 9)]
+
         # Environment configuration
         self.dimensions = dimensions # w, h
-        self.w, self.h = dimensions # for cleaner code :)
+        self.width, self.height = dimensions # for cleaner code :)
         self.start_pos = start_pos
         self.random_seed = 0
         self.n_frames = 0
         self.verbose = verbose
 
         # Object management
-        self.bbots = [Bombot(self, pos) for pos in start_pos] # Object list
+        self.bbots = [Bombot(self, start_pos[i], i + 1) for i in range(len(start_pos))] # Object list
         self.bombs = [] # Object list
         self.fires = [] # Object list
         self.upers = [] # Object list
         self.killbuf_bomb = [] # Object destruction buffer
         self.killbuf_fire = [] # Object destruction buffer
         self.killbuf_upg  = [] # Object destruction buffer
-    
+
         # Map generation
         self.generate_map()
 
         # Stats
         self.stats = {
-            'player1_wins' : 0,
-            'player2_wins' : 0
+            'player1' : {
+                'wins' : 0,
+                'boxes' : 0,
+                'bombs' : 0,
+                'upgrades' : 0
+            },
+            'player2' : {
+                'wins' : 0,
+                'boxes' : 0,
+                'bombs' : 0,
+                'upgrades' : 0
+            }
         }
 
         # RL
@@ -75,7 +89,7 @@ class Bombots(gym.Env):
             self.tm = TexMan(self.scale)
             self.font = pg.font.Font(pg.font.get_default_font(), 16)
 
-    def step(self, actions):
+    def step(self, action):
         done = False
         
         self.n_frames += 1
@@ -97,13 +111,14 @@ class Bombots(gym.Env):
         # Apply actions
         for i in range(len(self.bbots)):
             bot = self.bbots[i]
-            bot.act(actions[i])
+            bot.act(action[i])
             for upg in self.upers:
                 if bot.x == upg.x and bot.y == upg.y:
                     if upg.upgrade_type == Upgrade.AMMO:
                         bot.ammo += 1
                     if upg.upgrade_type == Upgrade.STR:
                         bot.str += 1
+                    self.stats['player{}'.format(bot.id)]['upgrades'] += 1
                     self.killbuf_upg.append(upg)
 
         # object tick
@@ -130,7 +145,7 @@ class Bombots(gym.Env):
 
         for i in range(len(self.bbots)):
             if self.fire_map[self.bbots[i].x][self.bbots[i].y] == 1:
-                self.stats['player{}_wins'.format(((i + 1) % 2) + 1)] += 1
+                self.stats['player{}'.format(((i + 1) % 2) + 1)]['wins'] += 1
                 self.bbots[i].dead = True
                 done = True
 
@@ -145,7 +160,7 @@ class Bombots(gym.Env):
         return states, rewards, done, info
     
     def get_state_tensor(self, bot):
-        tensor = np.zeros((6, self.w, self.h))
+        tensor = np.zeros((6, self.width, self.height))
         tensor[0][bot.x][bot.y] = 1
         
         for obot in self.bbots:
@@ -171,8 +186,8 @@ class Bombots(gym.Env):
         
         return state
 
-    def reset(self): # TODO: Make this a real reset function
-        self.bbots = [Bombot(self, pos) for pos in self.start_pos] # Object list
+    def reset(self):
+        self.bbots = [Bombot(self, self.start_pos[i], i + 1) for i in range(len(self.start_pos))] # Object list
         self.bombs = [] # Object list
         self.fires = [] # Object list
         self.upers = [] # Object list
@@ -188,6 +203,8 @@ class Bombots(gym.Env):
         self.box_map = np.zeros(self.dimensions)
         self.fire_map = np.zeros(self.dimensions)
         
+        random.seed(seed)
+
         start_area = [pos for pos in self.start_pos]
         for pos in self.start_pos:
             i, j = pos
@@ -202,7 +219,7 @@ class Bombots(gym.Env):
                 elif random.randint(0, 4) == 0 and (i, j) not in start_area:
                     self.upers.append(Upgrade(self, (i, j), random.randint(0, 1)))
 
-    def render(self):
+    def render(self, mode='human'):
         if self.render_mode != self.NO_RENDER:
             # Base color
             pg.draw.rect(self.screen, (24, 24, 24), (0, 0, self.dimensions[0] * self.scale, self.dimensions[1] * self.scale))
@@ -263,9 +280,9 @@ class Bombots(gym.Env):
             if self.show_fps:
                 fps = 1000 // (sum(list(self.buf_frametime)) / len(list(self.buf_frametime)))
                 text_surface = self.font.render('FPS: {}'.format(fps), True, (255, 0, 0))
-                self.screen.blit(text_surface, dest=(self.scale * self.w - text_surface.get_width() - 8, 8))
-                text_surface2 = self.font.render('Stats: {} - {}'.format(self.stats['player1_wins'], self.stats['player2_wins']), True, (255, 0, 0))
-                self.screen.blit(text_surface2, dest=(self.scale * self.w - text_surface2.get_width() - 8, 32))
+                self.screen.blit(text_surface, dest=(self.scale * self.width - text_surface.get_width() - 8, 8))
+                text_surface2 = self.font.render('Stats: {} - {}'.format(self.stats['player1']['wins'], self.stats['player2']['wins']), True, (255, 0, 0))
+                self.screen.blit(text_surface2, dest=(self.scale * self.width - text_surface2.get_width() - 8, 32))
             
             pg.display.flip()
             self.buf_frametime.append(self.clock.tick(int(self.framerate)))
@@ -273,22 +290,23 @@ class Bombots(gym.Env):
             raise RuntimeError('Render function was called with render_mode=Bombots.NO_RENDER. Resolve this either by removing the call or change render mode.')
 
     def get_neighbors(self, x, y, cmap):
-        right = x + 1 in range(0, self.w) and cmap[x + 1][y]
-        left  = x - 1 in range(0, self.w) and cmap[x - 1][y]
-        down  = y + 1 in range(0, self.h) and cmap[x][y + 1]
-        up    = y - 1 in range(0, self.h) and cmap[x][y - 1]
+        right = x + 1 in range(0, self.width) and cmap[x + 1][y]
+        left  = x - 1 in range(0, self.width) and cmap[x - 1][y]
+        down  = y + 1 in range(0, self.height) and cmap[x][y + 1]
+        up    = y - 1 in range(0, self.height) and cmap[x][y - 1]
         return right, left, down, up
 
 class Bombot:
     FACE_N, FACE_S, FACE_E, FACE_W = range(4)
     
-    def __init__(self, env, spawn_location):
+    def __init__(self, env, spawn_location, id):
         self.x, self.y = spawn_location # (i, j) = (x, y), [x][y]
         self.ammo = 1
         self.str = 1
         self.env = env
         self.face = Bombot.FACE_S
         self.dead = False
+        self.id = id
 
     def act(self, action):
         # Movement
@@ -324,6 +342,7 @@ class Bomb:
         self.fuse = 30
         self.str = self.instigator.str
         self.x, self.y = (instigator.x, instigator.y)
+        env.stats['player{}'.format(instigator.id)]['bombs'] += 1
 
     def tick(self):
         self.fuse -= 1
@@ -347,6 +366,7 @@ class Fire:
                 self.fire_pos.append((self.x + i, self.y))
                 if self.env.box_map[self.x + i][self.y] == 1:
                     self.env.box_map[self.x + i][self.y] = 0
+                    env.stats['player{}'.format(instigator.instigator.id)]['boxes'] += 1
                     break
             else:
                 break
@@ -356,6 +376,7 @@ class Fire:
                 self.fire_pos.append((self.x - i, self.y))
                 if self.env.box_map[self.x - i][self.y] == 1:
                     self.env.box_map[self.x - i][self.y] = 0
+                    env.stats['player{}'.format(instigator.instigator.id)]['boxes'] += 1
                     break
             else: 
                 break
@@ -365,6 +386,7 @@ class Fire:
                 self.fire_pos.append((self.x, self.y + i))
                 if self.env.box_map[self.x][self.y + i] == 1:
                     self.env.box_map[self.x][self.y + i] = 0
+                    env.stats['player{}'.format(instigator.instigator.id)]['boxes'] += 1
                     break
             else: 
                 break
@@ -374,6 +396,7 @@ class Fire:
                 self.fire_pos.append((self.x, self.y - i))
                 if self.env.box_map[self.x][self.y - i] == 1:
                     self.env.box_map[self.x][self.y - i] = 0
+                    env.stats['player{}'.format(instigator.instigator.id)]['boxes'] += 1
                     break
             else: 
                 break
