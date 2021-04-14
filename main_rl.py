@@ -3,6 +3,7 @@ import numpy as np
 from bombots.environment import Bombots
 from templates.agent_rl import RLAgent
 from NEAT.NEAT import NeatAgent
+from agent_that_does_not_suicide import BeatNopAgent
 from NOP import NopAgent
 import neat
 import os
@@ -58,16 +59,45 @@ def eval_genomes(genomes, config):
                         break
                 if same == last:
                     genome.fitness -= 0.001
+                else:
+                    if genome.fitness < 5:
+                        genome.fitness += 0.001
+                    if not np.array_equal(states[0][4], last[0][4]):
+                        print("It placed a bomb and it exploded something")
+                        genome.fitness += 0.1
             last = states
 
-            env.render()  # Comment out this call to train faster
+            #env.render()  # Comment out this call to train faster
 
             if done:
                 print(done)
+                print(info)
                 if player1_wins != info['player1_wins']:
-                    genome.fitness += 10
+                    genome.fitness += 100
                     player1_wins = info['player1_wins']
                 else:
                     genome.fitness -= 3
 
-p.run(eval_genomes, 10)
+
+winner = p.run(eval_genomes, 5)
+agents = [NeatAgent(env, config, winner), BeatNopAgent(env)]
+states = env.reset()
+
+done = False
+rewards = [0, 0]
+info = {}
+while True:
+    states, rewards, done, info = env.step(
+        [agents[i].act(states[i], rewards[i], done, info) for i in range(len(agents))])
+    last = states
+    env.render()  # Comment out this call to train faster
+    if done:
+        print(info)
+        states = env.reset()
+
+"""
+node_names = {-1:'A', -2: 'B', 0:'A XOR B'}
+    visualize.draw_net(config, winner, True, node_names=node_names)
+    visualize.plot_stats(stats, ylog=False, view=True)
+    visualize.plot_species(stats, view=True)
+    """

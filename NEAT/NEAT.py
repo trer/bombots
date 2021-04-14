@@ -40,20 +40,19 @@ class NeatAgent:
         s = np.concatenate((me_cords, opponent_cords))
         s = np.concatenate((s, map))
         output = self.net.activate(s)
-        print(output)
-        output = math.floor(output[0]*7)
+        output = math.floor(output[0]*6)
         if output == 0:
-            return self.env.NOP
+            output = self.env.BOMB
         elif output == 1:
             return self.env.UP
         elif output == 2:
-            return self.env.Down
-        elif output == 0:
+            return self.env.DOWN
+        elif output == 3:
             return self.env.RIGHT
-        elif output == 0:
+        elif output == 4:
             return self.env.LEFT
         else:
-            output = self.env.BOMB
+            return self.env.NOP
         return output
 
     def prep_state(self, state):
