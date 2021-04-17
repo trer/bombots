@@ -23,7 +23,7 @@ class Agent:
         self.epsilon = 0.5  # randomness
         self.gamma = 0.9  # discount rate
         self.memory = deque(maxlen=MAX_MEMORY)  # popleft()
-        self.model = Linear_QNet(121, 512, 6)
+        self.model = Linear_QNet(11, 6)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
     def remember(self, state, action, reward, next_state, done):
@@ -64,14 +64,14 @@ class Agent:
     def act(self, state):
         # random moves: tradeoff exploration / exploitation
 
-        self.epsilon = 230 - self.n_games
+        self.epsilon = 2000 - self.n_games
         final_move = [0, 0, 0, 0, 0, 0]
-        if random.randint(0, 200) < self.epsilon:
-            return self.training_agent.act(state)
-            #move = random.randint(0, 5)
-            #final_move[move] = 1
+        if random.randint(0, 500) < self.epsilon:
+            #return self.training_agent.act(state)
+            move = random.randint(0, 5)
+            final_move[move] = 1
         else:
-            state = self.get_state(state)
+            #state = self.get_state(state)
             state0 = torch.tensor(state, dtype=torch.float)
             prediction = self.model(state0)
             move = torch.argmax(prediction).item()
@@ -130,17 +130,17 @@ def train():
 
         env.render()
 
-        state_old1 = agent.get_state(state_old)
-        state_new1 = agent.get_state(state_new[0])
+        #state_old1 = agent.get_state(state_old)
+        #state_new1 = agent.get_state(state_new[0])
 
         reward = rewards[0]
 
 
         # train short memory
-        agent.train_short_memory(state_old1, final_move, reward, state_new1, done)
+        agent.train_short_memory(state_old, final_move, reward, state_new, done)
 
         # remember
-        agent.remember(state_old1, final_move, reward, state_new1, done)
+        agent.remember(state_old, final_move, reward, state_new, done)
 
         state_old = state_new[0]
 

@@ -4,15 +4,35 @@ import torch.optim as optim
 import torch.nn.functional as F
 import os
 
+"""
+conv4 = Conv1D(128,ksize,activation='relu',padding='same')(conv3)
+up1 = UpSampling1D(2)(conv4)
+conv5 = Conv1D(64,ksize,activation='relu',padding='same')(up1)
+up2 = UpSampling1D(2)(conv5)
+out = Conv1D(input_shape.shape[-1],ksize,activation='sigmoid',padding='same')(up2)
+"""
+
 
 class Linear_QNet(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
+    def __init__(self, input_size, output_size):
         super().__init__()
-        self.linear1 = nn.Linear(input_size, hidden_size)
-        self.linear2 = nn.Linear(hidden_size, output_size)
+        self.conv_1 = nn.Conv1d(
+            in_channels=input_size,
+            out_channels=64,
+            kernel_size=(3, )
+        )
+        self.up1 = nn.MaxPool1d((3,))
+        self.flatten = nn.Flatten()
+        self.linear2 = nn.Linear(64, output_size)
 
     def forward(self, x):
-        x = F.relu(self.linear1(x))
+        print("input", x.shape)
+        x = F.relu(self.conv_1(x))
+        print("conv_1", x.shape)
+        x = F.relu(self.up1(x))
+        print("up1", x.shape)
+        x = F.relu(self.flatten(x))
+        print("flatten", x.shape)
         x = self.linear2(x)
         return x
 
