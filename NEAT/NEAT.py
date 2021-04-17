@@ -40,9 +40,10 @@ class NeatAgent:
         self.states.append(state)
         state = np.copy(state)
         me_cords, opponent_cords, map = self.prep_state(state)
-        s = np.concatenate((me_cords, opponent_cords))
-        s = np.concatenate((s, map))
-        output = self.net.activate(s)
+        #s = np.concatenate((me_cords, opponent_cords))
+        #s = np.concatenate((s, map))
+        output = self.net.activate(map)
+        """
         # Get agent coordinates from dictionary
         x, y = np.where(state[0] == 1)
         x, y = x[0], y[0]
@@ -53,7 +54,8 @@ class NeatAgent:
         if x - 1 not in range(0, self.env.width) or solid_map[x - 1][y] == 1: output[4] = -2
         if y + 1 not in range(0, self.env.height) or solid_map[x][y + 1] == 1: output[2] = -2
         if y - 1 not in range(0, self.env.height) or solid_map[x][y - 1] == 1: output[1] = -2
-        output = np.argmax(output)
+        
+        """
         #print(output)
 
         #output = math.floor((output[0]+1)*3)
@@ -61,6 +63,8 @@ class NeatAgent:
         #    print(f"niceoutput bro: {output}")
         #else:
         #    print("sucky sucky")
+
+        output = np.argmax(output)
         if output == 0:
             output = self.env.BOMB
         elif output == 1:
@@ -86,11 +90,17 @@ class NeatAgent:
         """
         for i in range(2, len(state)):
             layer = state[i]
-            state[i] = np.where(layer == 1, i-1, layer)
+            state[i] = np.where(layer == 1, i+1, layer)
 
-        map = np.maximum(state[2], state[3])
-        map = np.maximum(map, state[4])
-        map = np.maximum(map, state[5])
+        for i in range(2):
+            layer = state[i]
+            state[i] = np.where(layer == 1, (len(state)+1)*(i+1), layer)
+
+        map = np.add(state[0], state[1])
+        map = np.add(map, state[2])
+        map = np.add(map, state[3])
+        map = np.add(map, state[4])
+        map = np.add(map, state[5])
         map = map.flatten()
         return [me_cord[0][0], me_cord[1][0]], [opponent_cord[0][0], opponent_cord[1][0]], map
 

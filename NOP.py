@@ -33,5 +33,5 @@ class NopAgent:
     def __init__(self, env):
         self.env = env
 
-    def act(self, state, reward, done, info):
+    def act(self, state):
         return Bombots.NOP

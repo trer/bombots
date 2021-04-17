@@ -42,7 +42,7 @@ class BeatNopAgent:
             for i in range(0, self.env.height):
                 self.danger_zone[(bomb[0], i)] = 6
 
-    def act(self, state, reward, done, info):
+    def act(self, state):
 
         possible_moves = []
 
@@ -62,7 +62,6 @@ class BeatNopAgent:
         for key in self.danger_zone:
             if self.danger_zone[key] > 0:
                 danger_zone.append(key)
-
 
         if self.pos not in danger_zone:
             if x + 1 in range(0, self.env.width) and solid_map[x + 1][y] == 0 and (x+1, y) not in danger_zone: possible_moves.append(Bombots.RIGHT)

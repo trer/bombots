@@ -18,8 +18,8 @@ env = Bombots(
     scale       = 64,                    # Size of game tiles (in pixels)
     framerate   = 10,                    # Frames per second, set this to 0 for unbounded framerate
     state_mode  = Bombots.STATE_TENSOR,  # So the state is returned as a tensor
-    verbose     = True,                  # Useful printing during execution
-    render_mode = Bombots.RENDER_GFX_RGB # Change this to Bombots.NO_RENDER if you remove the render call
+    verbose     = False,                  # Useful printing during execution
+    render_mode = Bombots.RENDER_GFX_RGB, # Change this to Bombots.NO_RENDER if you remove the render call
 )
 config_path = os.path.join('', 'NEAT/config-feedforward')
 
@@ -51,6 +51,12 @@ def eval_genomes(genomes, config):
         while not done:
             states, rewards, done, info = env.step(
                 [agents[i].act(states[i], rewards[i], done, info) for i in range(len(agents))])
+            """
+            bomb_cords = np.where(state[2] == 1)
+            fire_cords = np.where(state[3] == 1)
+            crates_cords = np.where(state[4] == 1)
+            solid_map_cords = np.where(state[5] == 1)
+            """
             if last is not None:
                 same = True
                 for i in range(len(states)):
@@ -58,28 +64,34 @@ def eval_genomes(genomes, config):
                         same = False
                         break
                 if same:
-                    genome.fitness -= 0.1
+                    pass
+                    # if you want to punish standing still
+                    genome.fitness -= 0.001
                 else:
-                    if genome.fitness < 30:
+                    if genome.fitness < 10:
+                        pass
+                        # if you want to encourage moving
                         genome.fitness += 1
                     if not np.array_equal(states[0][4], last[0][4]):
+                        # If you want to encourage bombing
                         print("It placed a bomb and it exploded something")
-                        genome.fitness += 50
+                        genome.fitness += 10
             last = states
 
-            #env.render()  # Comment out this call to train faster
+            # env.render()  # Comment out this call to train faster
 
             if done:
                 #print(done)
                 #print(info)
                 if player1_wins != info['player1']['wins']:
+                    print("it fakking did it")
                     genome.fitness += 1000
-                    player1_wins = info['player1_wins']
+                    player1_wins = info['player1']['wins']
                 else:
-                    genome.fitness -= 10
+                    genome.fitness -= 3
 
 
-winner = p.run(eval_genomes, 5)
+winner = p.run(eval_genomes, 1000)
 agents = [NeatAgent(env, config, winner), BeatNopAgent(env)]
 states = env.reset()
 
