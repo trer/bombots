@@ -23,7 +23,7 @@ class Agent:
         self.epsilon = 0.5  # randomness
         self.gamma = 0.9  # discount rate
         self.memory = deque(maxlen=MAX_MEMORY)  # popleft()
-        self.model = Linear_QNet(11, 6)
+        self.model = Linear_QNet(6, 6)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
     def remember(self, state, action, reward, next_state, done):
@@ -54,25 +54,33 @@ class Agent:
             mini_sample = self.memory
 
         states, actions, rewards, next_states, dones = zip(*mini_sample)
-        self.trainer.train_step(states, actions, rewards, next_states, dones)
-        # for state, action, reward, nexrt_state, done in mini_sample:
-        #    self.trainer.train_step(state, action, reward, next_state, done)
+        # print(len(states))
+        #self.trainer.train_step(states, actions, rewards, next_states, dones)
+        for state, action, reward, next_state, done in mini_sample:
+            self.trainer.train_step(state, action, reward, next_state, done)
 
     def train_short_memory(self, state, action, reward, next_state, done):
         self.trainer.train_step(state, action, reward, next_state, done)
 
     def act(self, state):
         # random moves: tradeoff exploration / exploitation
-
-        self.epsilon = 2000 - self.n_games
+        if self.n_games < 80:
+            self.epsilon = 80 - self.n_games
+        elif self.n_games < 10000:
+            self.epsilon = 4
         final_move = [0, 0, 0, 0, 0, 0]
-        if random.randint(0, 500) < self.epsilon:
-            #return self.training_agent.act(state)
-            move = random.randint(0, 5)
-            final_move[move] = 1
+        if random.randint(0, 80) < self.epsilon:
+            if self.n_games < 10000:
+                return self.training_agent.act(state)
+            else:
+
+                move = random.randint(0, 5)
+                final_move[move] = 1
         else:
             #state = self.get_state(state)
-            state0 = torch.tensor(state, dtype=torch.float)
+            state1 = np.copy(state)
+            state1 = np.reshape(state1, (1, 6, 11, 11))
+            state0 = torch.tensor(state1, dtype=torch.float)
             prediction = self.model(state0)
             move = torch.argmax(prediction).item()
             final_move[move] = 1
@@ -102,7 +110,8 @@ def train():
         framerate=0,  # Frames per second, set this to 0 for unbounded framerate
         state_mode=Bombots.STATE_TENSOR,  # So the state is returned as a tensor
         verbose=False,  # Useful printing during execution
-        render_mode=Bombots.RENDER_GFX_RGB,  # Change this to Bombots.NO_RENDER if you remove the render call
+        render_mode=Bombots.RENDER_GFX_RGB,  # Change this to Bombots.NO_RENDER if you remove the render call RENDER_GFX_RGB
+        seed=2
     )
     agents = [Agent(env), NopAgent(env)]
     agent = agents[0]
@@ -111,7 +120,7 @@ def train():
     rewards = [0, 0]
     done = False
     info = {}
-    last = {'wins': 0, 'boxes': 0}
+    last = {'wins': 0, 'boxes': 0, 'loss': 0}
 
     state_old = states[0]
     count_max = 100
@@ -130,17 +139,19 @@ def train():
 
         env.render()
 
-        #state_old1 = agent.get_state(state_old)
-        #state_new1 = agent.get_state(state_new[0])
+        state_old1 = np.copy(state_old)
+        state_old1 = np.reshape(state_old1, (1, 6, 11, 11))
+        state_new1 = np.copy(state_new[0])
+        state_new1 = np.reshape(state_new1, (1, 6, 11, 11))
 
         reward = rewards[0]
 
 
         # train short memory
-        agent.train_short_memory(state_old, final_move, reward, state_new, done)
+        agent.train_short_memory(state_old1, final_move, reward, state_new1, done)
 
         # remember
-        agent.remember(state_old, final_move, reward, state_new, done)
+        agent.remember(state_old1, final_move, reward, state_new1, done)
 
         state_old = state_new[0]
 
@@ -150,17 +161,20 @@ def train():
 
         if done:
             # train long memory, plot result
-            env.reset()
+            states = env.reset()
+            state_old = states[0]
             agent.n_games += 1
             agent.train_long_memory()
 
             win = info['player1']['wins'] - last['wins']
+            loss = info['player2']['wins'] - last['loss']
             boxes = info['player1']['boxes'] - last['boxes']
             last['wins'] = info['player1']['wins']
             last['boxes'] = info['player1']['boxes']
+            last['loss'] = info['player2']['wins']
 
-            score = 100*win + boxes + count/100
-            count=0
+            score = 100 + 100*win + boxes + count/100 - 100*loss
+            count = 0
 
             if score > record:
                 record = score
