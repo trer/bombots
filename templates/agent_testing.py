@@ -5,6 +5,8 @@ sys.path.append("..")
 from bombots.environment import Bombots
 from collections import Counter
 
+debug_print = False
+
 class TestAgent:
     
     # Feel free to remove the comments from this file, they 
@@ -41,12 +43,25 @@ class TestAgent:
         self.enemy_strength = 1
         self.enemy_ammo = 1
 
-    # TODO: Take fire into account, docstrings
+    # Finished
     def get_danger_zone(self, env_state):
+        """
+        Gives you a map of tiles to avoid bc they're in bomb range, or on fucking fire.
+        Takes into account bomb strength, as well as boxes and walls
+
+        PARAMS:
+            env_state: the env_state given to self.act()
+        RETURNS:
+            array[(x,y) tuple]: list of tile-tuples to avoid
+        """
+
+        if debug_print: print("FINDING")
         danger_zone = []
 
         solid_map = np.logical_or(self.env.box_map, self.env.wall_map)
         wx, wy = solid_map.shape
+
+        debug = np.zeros((wx,wy))
 
         # Update base on bomb reach (takes into account walls and boxes)
         for key in self.known_bombs.keys():
@@ -61,36 +76,41 @@ class TestAgent:
             #     break
 
 
-            # Searching upwards
+            # Searching right
             for x1 in range(x+1, x+1+bomb_strength):
                 if x1 == wx:
                     break
                 if solid_map[x1][y] == False:
                     danger_zone.append((x1, y))
-            
-            # Searching downwards
+                    debug[x1,y] = 1
+                    if debug_print: print("DANGER RIGHT")
+            # Searching left
             for x2 in range(x-1, x-1-bomb_strength, -1):
                 if x2 == -1:
                     break
                 if solid_map[x2][y] == False:
                     danger_zone.append((x2, y))
-
-            # Searching right
+                    debug[x2,y] = 1
+                    if debug_print: print("DANGER LEFT")
+            # Searching down
             for y1 in range(y+1, y+1+bomb_strength):
                 if y1 == wy:
                     break
                 if solid_map[x][y1] == False:
                     danger_zone.append((x, y1))
-
-            # Searching right
+                    debug[x,y1] = 1
+                    if debug_print: print("DANGER BELOW")
+            # Searching up
             for y2 in range(y-1, y-1-bomb_strength, -1):
                 if y2 == -1:
                     break
                 if solid_map[x][y2] == False:
                     danger_zone.append((x, y2))
-
+                    debug[x,y2] = 1
+                    if debug_print: print("DANGER ABOVE")
             # Add bomb itself to the danger zone
             danger_zone.append(bomb_pos)
+            debug[x,y] = 1
         
         # Add fire squares
         for x in range(0, wx):
@@ -98,13 +118,17 @@ class TestAgent:
                 if self.env.fire_map[x][y] == 1:
                     if (x,y) not in danger_zone:
                         danger_zone.append((x,y))
-
+                        debug[x,y] = 1
+                        if debug_print: print("DANGER FIRE")
+        debug = np.fliplr(np.rot90(debug, 3))
+        if debug_print: print(debug)
         return danger_zone
 
     # Finished
     def update_bombs(self, env_state):
         """
-        Will update self.known_bombs with data from the current env_state
+        Will update self.known_bombs with data from the current env_state.
+
         PARAMS:
             env_state: the env_state given to self.act()
         """
@@ -142,8 +166,16 @@ class TestAgent:
         for key in rem:
             self.known_bombs.pop(key, None)
 
-    # TODO: docstring
+    # Finished
     def update_powerups(self, env_state):
+        """
+        Compares this rounds PUs with las round's and decides who picked up what.
+        Updates agent/opponent ammo and strength counters accordingly, so bomb/danger_zone info is accurate.
+
+        PARAMS:
+            env_state: the env_state given to self.act()
+        """
+
         # find difference to last rounds pu map
         for pu in self.last_round_pu_map:
             if pu not in self.env.upers:
@@ -169,7 +201,8 @@ class TestAgent:
     # Finished
     def get_shortest_path_to(self, env_state, destination):
         """
-        Will find the shortest path from current position to the given destination
+        Will find the shortest path from current position to the given destination.
+
         PARAMS:
             env_state: the env_state given to self.act()
             destination (string) / (tuple): string of the destination in the form 'x-y' or tuple in the form (x, y)
@@ -237,7 +270,8 @@ class TestAgent:
     # Finished
     def get_nearest_safe_tile(self, env_state):
         """
-        Finds the closest safe tile based on your current position
+        Finds the closest safe tile based on your current position.
+
         PARAMS:
             env_state: the env_state given to self.act()
         RETURNS:
@@ -286,13 +320,17 @@ class TestAgent:
         close_nodes = bellman_ford(nodes, len(edge_data), start)
 
         for tile in danger_zone:
-            close_nodes.remove(get_node(nodes, f"{tile[0]}-{tile[1]}"))
+            tile_node = get_node(nodes, f"{tile[0]}-{tile[1]}")
+            if tile_node in close_nodes:
+                close_nodes.remove(tile_node)
 
         return close_nodes[0].get_coordinates()
 
+    # Finished
     def get_movement_direction(self, agent_pos, next_tile):
         """
-        Returns the action required to reach next tile
+        Returns the action required to reach next tile.
+
         PARAMS:
             agent_pos (x,y) tuple: tuple of agent's current position
             next_tile (x,y) tuple: tuple of next tile to walk to
@@ -315,28 +353,44 @@ class TestAgent:
         return Bombots.NOP
 
     def act(self, env_state):
-        print("\n\nPREINTING MY BUILLSHIT HERE")
+        if debug_print: print("\n\nPREINTING MY BUILLSHIT HERE")
 
-        print("UPDATEING")
+        if debug_print: print("UPDATEING")
+
+        # SETUP START
+
         # SETTING UP USEFUL INFORMATION
         # update bombs
         self.update_bombs(env_state)
-        # get path to enemy
-        enemy_pos_string = f"{env_state['opponent_pos'][0][0]}-{env_state['opponent_pos'][0][1]}"
-        path_to_enemy = self.get_shortest_path_to(env_state, enemy_pos_string)
-        next_tile = path_to_enemy[1]
-        nx, ny = next_tile
         # get dangerzone
         danger_zone = self.get_danger_zone(env_state)
         # get agent pos
         agent_pos = env_state['self_pos']
+        enemy_pos = env_state['opponent_pos']
+        # update powerups
+        self.update_powerups(env_state)
 
-        print(f"MY POSITION: {agent_pos}")
-        print(f"NT POSITION: {next_tile}")
+        # Agent is on opponent, and there is a bomb
+
+        # get path to enemy
+        enemy_pos_string = f"{enemy_pos[0][0]}-{enemy_pos[0][1]}"
+        path_to_enemy = self.get_shortest_path_to(env_state, enemy_pos_string)
+
+        if len(path_to_enemy) > 1:
+            next_tile = path_to_enemy[1]
+        else:
+            next_tile = path_to_enemy[0]
+        nx, ny = next_tile
+
+
+        if debug_print: print(f"MY POSITION: {agent_pos}")
+        if debug_print: print(f"NT POSITION: {next_tile}")
+
+        # SETUP END
         
 
 
-        # decision making:
+        # DECISION MAKING
 
         # if agent in dangerzone:
             # if enemy_path.next == safe:
@@ -350,46 +404,52 @@ class TestAgent:
                 # place bomb
             # else:
                 # move towards enemy
-        print("MAKE DECISION")
-        if agent_pos in danger_zone:
+        if debug_print: print("MAKE DECISION")
+
+        # if agent on opponent and no bomb
+        if agent_pos in enemy_pos and agent_pos not in danger_zone:
+            action = Bombots.BOMB
+        elif agent_pos in danger_zone:
             if next_tile not in danger_zone and self.env.box_map[nx][ny] != 1:
-                print("move towards enemy")
+                if debug_print: print("move towards enemy")
                 action = self.get_movement_direction(agent_pos, next_tile)
             else:
-                print("move towards safety")
+                if debug_print: print("move towards safety")
                 next_safe_tile = self.get_nearest_safe_tile(env_state)
-                print(f"Nearest safe tile is {next_safe_tile}")
+                if debug_print: print(f"Nearest safe tile is {next_safe_tile}")
                 path_to_nearest_safe_tile = self.get_shortest_path_to(env_state, next_safe_tile)
                 next_tile_towards_safety = path_to_nearest_safe_tile[1]
                 action = self.get_movement_direction(agent_pos, next_tile_towards_safety)
                 pass
         else:
             if next_tile in danger_zone:
-                print("dont move")
+                if debug_print: print("dont move")
                 action = Bombots.NOP
             elif self.env.box_map[nx][ny] == 1:
                 if agent_pos in env_state['bomb_pos']:
-                    print("bomb here alreadym, getting da fuck out")
+                    if debug_print: print("bomb here alreadym, getting da fuck out")
                     next_safe_tile = self.get_nearest_safe_tile(env_state)
                     action = self.get_movement_direction(agent_pos, next_safe_tile)
                 else:
-                    print("bomb")
+                    if debug_print: print("bomb")
                     action = Bombots.BOMB
             else:
                 action = self.get_movement_direction(agent_pos, next_tile)
-                print("move towards enemy")
+                if debug_print: print("move towards enemy")
 
     
 
-        print("\n")
+        # DEBUG SHIDD
+
+        if debug_print: print("\n")
 
         # self.known_bombs["1-1"] = [30, 2, (1,1)]
 
-        print(f"Bombs: {self.known_bombs}")
-        danger_zone = self.get_danger_zone(env_state)
-        print(f"DAnger cONE: {danger_zone}")
-        if len(danger_zone) > 0:
-            print(f"Closest safe node: {self.get_nearest_safe_tile(env_state)}")
+        if debug_print: print(f"Bombs: {self.known_bombs}")
+        # danger_zone = self.get_danger_zone(env_state)
+        # print(f"DAnger cONE: {danger_zone}")
+        # if len(danger_zone) > 0:
+        #     print(f"Closest safe node: {self.get_nearest_safe_tile(env_state)}")
 
         # self.get_shortest_path_to(env_state, "9-9")
 

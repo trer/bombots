@@ -12,7 +12,7 @@ if '--novid' in sys.argv:
 
 env = Bombots(
     scale       = 64,                    # Size of game tiles (in pixels)
-    framerate   = 5,                    # Frames per second, set this to 0 for unbounded framerate
+    framerate   = 10,                    # Frames per second, set this to 0 for unbounded framerate
     state_mode  = Bombots.STATE_DICT,    # So the state is returned as a dictionary
     verbose     = True,                  # Useful printing during execution
     render_mode = Bombots.RENDER_GFX_RGB # Change this to Bombots.NO_RENDER if you remove the render call
