@@ -12,7 +12,7 @@ if '--novid' in sys.argv:
 
 env = Bombots(
     scale       = 64,                    # Size of game tiles (in pixels)
-    framerate   = 4,                    # Frames per second, set this to 0 for unbounded framerate
+    framerate   = 5,                    # Frames per second, set this to 0 for unbounded framerate
     state_mode  = Bombots.STATE_DICT,    # So the state is returned as a dictionary
     verbose     = True,                  # Useful printing during execution
     render_mode = Bombots.RENDER_GFX_RGB # Change this to Bombots.NO_RENDER if you remove the render call
@@ -21,7 +21,7 @@ env = Bombots(
 agents = [TestAgent(env), NOPAgent(env)]
 # agents = [TestAgent(env), RuleBasedAgent(env)]
 # agents = [TestAgent(env), BeatNopAgent(env)]
-# agents = [BeatNopAgent(env), NOPAgent(env)]
+# agents = [BeatNopAgent(env), RuleBasedAgent(env)]
 
 if '--test' not in sys.argv:
     states = env.reset()

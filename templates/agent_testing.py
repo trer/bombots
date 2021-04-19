@@ -5,14 +5,6 @@ sys.path.append("..")
 from bombots.environment import Bombots
 from collections import Counter
 
-import numpy as np
-import time
-
-
-nodes = []
-
-
-
 class TestAgent:
     
     # Feel free to remove the comments from this file, they 
@@ -34,79 +26,88 @@ class TestAgent:
     # Bombots.BOMB   - Place bomb
 
     # State reference: 
-    # env_state['self_pos'] - Coordinates of the controlled bot - (x, y) tuple
-    # env_state['opponent_pos'] - Coordinates of the opponent bot   - (x, y) tuple
+    # env_state['agent_pos'] - Coordinates of the controlled bot - (x, y) tuple
+    # env_state['enemy_pos'] - Coordinates of the opponent bot   - (x, y) tuple
     # env_state['bomb_pos']  - List of bomb coordinates          - [(x, y), (x, y)] list of tuples
-
-    # env.wall_map  -   np-array of walls
-    # env.box_map   -   np-array of boxes
     
     def __init__(self, env):
         self.env = env
-
-        self.hasprinted = False
-        self.counter = 0
-
         self.known_bombs = {}
-        # self.known_bombs  - Dict of bombs - { "x-y" : [tick, strength, bomb] }
 
-        # MIRRORED WITH ENEMY
+        self.last_round_pu_map = []
+
         self.agent_strength = 1
-
-        # ENEMY
+        self.ammo = 1
         self.enemy_strength = 1
+        self.enemy_ammo = 1
 
-    # return [(x1,y1), (x2, y2)]
-    def find_path(self, start, end):
+    # TODO: Take fire into account, docstrings
+    def get_danger_zone(self, env_state):
+        danger_zone = []
+
+        solid_map = np.logical_or(self.env.box_map, self.env.wall_map)
+        wx, wy = solid_map.shape
+
+        # Update base on bomb reach (takes into account walls and boxes)
+        for key in self.known_bombs.keys():
+
+            bomb_info = self.known_bombs[key]
+            bomb_pos = bomb_info[2]
+            bomb_strength = bomb_info[1]
+            x,y = bomb_pos
+
+            # Limits danger zone to bombs about to go off. Comment out if it buggy (yes)
+            # if bomb_info[0] > 10:
+            #     break
+
+
+            # Searching upwards
+            for x1 in range(x+1, x+1+bomb_strength):
+                if x1 == wx:
+                    break
+                if solid_map[x1][y] == False:
+                    danger_zone.append((x1, y))
+            
+            # Searching downwards
+            for x2 in range(x-1, x-1-bomb_strength, -1):
+                if x2 == -1:
+                    break
+                if solid_map[x2][y] == False:
+                    danger_zone.append((x2, y))
+
+            # Searching right
+            for y1 in range(y+1, y+1+bomb_strength):
+                if y1 == wy:
+                    break
+                if solid_map[x][y1] == False:
+                    danger_zone.append((x, y1))
+
+            # Searching right
+            for y2 in range(y-1, y-1-bomb_strength, -1):
+                if y2 == -1:
+                    break
+                if solid_map[x][y2] == False:
+                    danger_zone.append((x, y2))
+
+            # Add bomb itself to the danger zone
+            danger_zone.append(bomb_pos)
         
-        walls = self.env.wall_map
-        boxes = self.env.box_map
+        # Add fire squares
+        for x in range(0, wx):
+            for y in range(0, wy):
+                if self.env.fire_map[x][y] == 1:
+                    if (x,y) not in danger_zone:
+                        danger_zone.append((x,y))
 
-        wx,wy = walls.shape
+        return danger_zone
 
-        path_data = []
-
-        for x in range(wx):
-            for y in range(wy):
-                if walls[x][y] != 1:
-                    if x > 0:
-                        dist = 1
-                        if boxes[x-1][y] == 1:
-                            dist = 33
-                        path_data.append([f"{x}-{y}", f"{x-1}-{y}", dist])
-                    
-                    if x < wx-1:
-                        dist = 1
-                        if boxes[x+1][y] == 1:
-                            dist = 33
-                        path_data.append([f"{x}-{y}", f"{x+1}-{y}", dist])
-
-                    if y > 0:
-                        dist = 1
-                        if boxes[x][y-1] == 1:
-                            dist = 33
-                        path_data.append([f"{x}-{y}", f"{x}-{y-1}", dist])
-                    
-                    if y < wy-1:
-                        dist = 1
-                        if boxes[x][y+1] == 1:
-                            dist = 33
-                        path_data.append([f"{x}-{y}", f"{x}-{y+1}", dist])
-
-
-        path_array = solve_dijkstra(path_data, start, end)[1:]
-        path_tuples = []
-        for tile in path_array:
-            x,y = int(tile.split("-")[0]), int(tile.split("-")[1])
-            path_tuples.append((x,y))
-        
-        return path_tuples
-
+    # Finished
     def update_bombs(self, env_state):
-        # env_state['self_pos'] - Coordinates of the controlled bot - (x, y) tuple
-        # env_state['opponent'] - Coordinates of the opponent bot   - (x, y) tuple
-        # env_state['bomb_pos']  - List of bomb coordinates          - [(x, y), (x, y)] list of tuples
-
+        """
+        Will update self.known_bombs with data from the current env_state
+        PARAMS:
+            env_state: the env_state given to self.act()
+        """
         # self.known_bombs  - Dict of bombs - { "x-y" : [tick, strength, bomb] }
 
         # Tick down any known bombs, remove them if they explode
@@ -117,6 +118,7 @@ class TestAgent:
                 bomb[0] -= 1
             else:
                 rem.append(key)
+
         # Remove any that are at 0 (exploded this round)
         for key in rem:
             self.known_bombs.pop(key, None)
@@ -139,107 +141,273 @@ class TestAgent:
 
         for key in rem:
             self.known_bombs.pop(key, None)
+
+    # TODO: docstring
+    def update_powerups(self, env_state):
+        # find difference to last rounds pu map
+        for pu in self.last_round_pu_map:
+            if pu not in self.env.upers:
+
+                # compare positions to enemy and agent
+                # update relevant player
+                if (pu.x, pu.y) == env_state['self_pos']:
+                    if pu.upgrade_type == 0:
+                        self.ammo += 1
+                    else:
+                        self.agent_strength += 1
+                else:
+                    if pu.upgrade_type == 0:
+                        self.enemy_ammo += 1
+                    else:
+                        self.enemy_strength += 1
+
+        # update last round map
+        self.last_round_pu_map = self.env.upers.copy()
+
+        pass
+
+    # Finished
+    def get_shortest_path_to(self, env_state, destination):
+        """
+        Will find the shortest path from current position to the given destination
+        PARAMS:
+            env_state: the env_state given to self.act()
+            destination (string) / (tuple): string of the destination in the form 'x-y' or tuple in the form (x, y)
+        RETURNS:
+            array[(x,y)]: ordered array of the coord-tuples to visit
+        """
+
+        if type(destination) == tuple:
+            destination = f"{destination[0]}-{destination[1]}"
+
+        edge_data = []
         
-        # print(self.known_bombs)
+        wx, wy = self.env.wall_map.shape
 
-    def get_danger_zone(self):
-        
-        # self.known_bombs  - Dict of bombs - { "x-y" : [tick, strength, bomb] }
+        # Turn playing field into digraph
+        for x in range(0, wx):
+            for y in range(0, wy):
+                if self.env.wall_map[x][y] == 0:
 
-        danger_zone = []
-        wx,wy = self.env.wall_map.shape
+                    # Edge to tile above
+                    if x > 0:
+                        if self.env.wall_map[x-1][y] == 0:
+                            distance = 1
+                            if self.env.box_map[x-1][y] == 1:
+                                distance = 33
+                            edge_data.append([f"{x}-{y}", f"{x-1}-{y}", distance])
+                    
+                    # Edge to tile below
+                    if x < wx-1:
+                        if self.env.wall_map[x+1][y] == 0:
+                            distance = 1
+                            if self.env.box_map[x+1][y] == 1:
+                                distance = 33
+                            edge_data.append([f"{x}-{y}", f"{x+1}-{y}", distance])
 
-        for key in self.known_bombs.keys():
-            bomb_info = self.known_bombs[key]
+                    # Edge to tile left
+                    if y > 0:
+                        if self.env.wall_map[x][y-1] == 0:
+                            distance = 1
+                            if self.env.box_map[x][y-1] == 1:
+                                distance = 33
+                            edge_data.append([f"{x}-{y}", f"{x}-{y-1}", distance])
 
-            if bomb_info[0] > 8:    #   Limits danger_zone to bombs that are about to go off
-                break               #   Comment out if needed
+                    # Edge to tile right
+                    if y < wy-1:
+                        if self.env.wall_map[x][y+1] == 0:
+                            distance = 1
+                            if self.env.box_map[x][y+1] == 1:
+                                distance = 33
+                            edge_data.append([f"{x}-{y}", f"{x}-{y+1}", distance])
 
-            x,y = bomb_info[2]
+        nodes = make_nodes(edge_data)
 
-            for i in range(x, x+bomb_info[1]+1):
-                if i == wx:
-                    break
-                danger_zone.append((i,y))
-                if self.env.wall_map[i][y] == 1 or self.env.box_map[i][y] == 1:
-                    break
+        agent_pos_string = f"{env_state['self_pos'][0]}-{env_state['self_pos'][1]}"
+        start = get_node(nodes, agent_pos_string)
+        end = get_node(nodes, destination)
+        path_nodes = dijkstra(nodes, start, end)
+        path_coords = []
 
-            for i in range(x, x-bomb_info[1]-1):
-                if i == wx:
-                    break
-                danger_zone.append((i,y))
-                if self.env.wall_map[i][y] == 1 or self.env.box_map[i][y] == 1:
-                    break
+        for node in path_nodes:
+            path_coords.append(node.get_coordinates())
 
-            for i in range(y, y+bomb_info[1]+1):
-                if i == wy:
-                    break
-                danger_zone.append((x,i))
-                if self.env.wall_map[x][i] == 1 or self.env.box_map[x][y] == 1:
-                    break
+        return path_coords
 
-            for i in range(y, y-bomb_info[1]-1):
-                if i == wy:
-                    break
-                danger_zone.append((x,i))
-                if self.env.wall_map[x][i] == 1 or self.env.box_map[x][y] == 1:
-                    break
+    # Finished
+    def get_nearest_safe_tile(self, env_state):
+        """
+        Finds the closest safe tile based on your current position
+        PARAMS:
+            env_state: the env_state given to self.act()
+        RETURNS:
+            (x, y) (int-tuple): coord-tuple of the closest safe nodet o stand on
+        """
+        danger_zone = self.get_danger_zone(env_state)
+        solid_map = np.logical_or(self.env.box_map, self.env.wall_map)
 
-        return set(danger_zone)
+        wx, wy = solid_map.shape
 
-    # start = agent_pos, end = whatever
-    def move_towards_position(self, start, end):
-        # start / end = "x-y"
-        next_tile = self.find_path(start, end)[0]
-        danger_zone = self.get_danger_zone()
+        edge_data = []
 
-        if next_tile in danger_zone:
-            return Bombots.NOP
+        for tile in danger_zone:
+            x, y = tile
+            # print(f"Danger zone tile: {tile}")
 
-        if self.env.box_map[next_tile[0]][next_tile[1]] == 1:
-            return Bombots.BOMB
+            if x > 0:
+                if solid_map[x-1][y] == False:
+                    edge_data.append([f"{x}-{y}", f"{x-1}-{y}", 1])
+            if x < wx-1:
+                if solid_map[x+1][y] == False:
+                    edge_data.append([f"{x}-{y}", f"{x+1}-{y}", 1])
+            if y > 0:
+                if solid_map[x][y-1] == False:
+                    edge_data.append([f"{x}-{y}", f"{x}-{y-1}", 1])
+            if y < wy-1:
+                if solid_map[x][y+1] == False:
+                    edge_data.append([f"{x}-{y}", f"{x}-{y+1}", 1])
 
+            # print(f"EDGE DATA this round: {edge_data}")
+
+        # print(f"EDGE DATA: {edge_data}")
+        nodes = make_nodes(edge_data)
+
+        ax, ay = env_state['self_pos']
+        agent_pos_string = f"{ax}-{ay}"
+        start = get_node(nodes, agent_pos_string)
+
+        # debug
+        if type(start) != node:
+            print(f"start: {start}")
+            print(f"pos string: {agent_pos_string}")
+            print(f"nodes: {nodes}")
+        # debug
+
+        close_nodes = bellman_ford(nodes, len(edge_data), start)
+
+        for tile in danger_zone:
+            close_nodes.remove(get_node(nodes, f"{tile[0]}-{tile[1]}"))
+
+        return close_nodes[0].get_coordinates()
+
+    def get_movement_direction(self, agent_pos, next_tile):
+        """
+        Returns the action required to reach next tile
+        PARAMS:
+            agent_pos (x,y) tuple: tuple of agent's current position
+            next_tile (x,y) tuple: tuple of next tile to walk to
+        RETURNS:
+            action: Bombots action
+        """
+
+        x, y = agent_pos
         nx, ny = next_tile
-        ax, ay = int(start.split("-")[0]), int(start.split("-")[1])
-        if nx > ax:
+
+        if x < nx:
             return Bombots.RIGHT
-        if nx < ax:
+        if x > nx:
             return Bombots.LEFT
-        if ny > ay:
+        if y < ny:
             return Bombots.DOWN
-        if ny < ay:
+        if y > ny:
             return Bombots.UP
+        
+        return Bombots.NOP
 
     def act(self, env_state):
-        tic = time.perf_counter()
-        
-        action = Bombots.NOP
-        # print(f"self_pos {env_state['self_pos']}")
-        # print(f"self_coords: {env_state['self_pos'][0]}-{env_state['self_pos'][1]}")
-        # print(f"opponent_pos {env_state['opponent_pos']}")
-        action = self.move_towards_position(
-            f"{env_state['self_pos'][0]}-{env_state['self_pos'][1]}",
-            f"{env_state['opponent_pos'][0][0]}-{env_state['opponent_pos'][0][1]}"
-            )
+        print("\n\nPREINTING MY BUILLSHIT HERE")
 
-        # TODO
-        # CODE FOR BRAIN GOES HERE PLEASE
-
+        print("UPDATEING")
+        # SETTING UP USEFUL INFORMATION
+        # update bombs
         self.update_bombs(env_state)
-        print(f"DZ: {self.get_danger_zone()}")
+        # get path to enemy
+        enemy_pos_string = f"{env_state['opponent_pos'][0][0]}-{env_state['opponent_pos'][0][1]}"
+        path_to_enemy = self.get_shortest_path_to(env_state, enemy_pos_string)
+        next_tile = path_to_enemy[1]
+        nx, ny = next_tile
+        # get dangerzone
+        danger_zone = self.get_danger_zone(env_state)
+        # get agent pos
+        agent_pos = env_state['self_pos']
+
+        print(f"MY POSITION: {agent_pos}")
+        print(f"NT POSITION: {next_tile}")
         
-        if not self.hasprinted:
-            print(f"Path array: {self.find_path('1-1', '9-9')}")
-            # print(env_state)
-            self.hasprinted = True
 
 
-        toc = time.perf_counter()
-        print(f"{toc-tic:0.4f} seconds")
+        # decision making:
+
+        # if agent in dangerzone:
+            # if enemy_path.next == safe:
+                # move towards enemy
+            # else:
+                # move towards safe
+        # else:
+            # if enemy_path.next in danger_zone:
+                # NOP
+            # elif enemy_path.next == box:
+                # place bomb
+            # else:
+                # move towards enemy
+        print("MAKE DECISION")
+        if agent_pos in danger_zone:
+            if next_tile not in danger_zone and self.env.box_map[nx][ny] != 1:
+                print("move towards enemy")
+                action = self.get_movement_direction(agent_pos, next_tile)
+            else:
+                print("move towards safety")
+                next_safe_tile = self.get_nearest_safe_tile(env_state)
+                print(f"Nearest safe tile is {next_safe_tile}")
+                path_to_nearest_safe_tile = self.get_shortest_path_to(env_state, next_safe_tile)
+                next_tile_towards_safety = path_to_nearest_safe_tile[1]
+                action = self.get_movement_direction(agent_pos, next_tile_towards_safety)
+                pass
+        else:
+            if next_tile in danger_zone:
+                print("dont move")
+                action = Bombots.NOP
+            elif self.env.box_map[nx][ny] == 1:
+                if agent_pos in env_state['bomb_pos']:
+                    print("bomb here alreadym, getting da fuck out")
+                    next_safe_tile = self.get_nearest_safe_tile(env_state)
+                    action = self.get_movement_direction(agent_pos, next_safe_tile)
+                else:
+                    print("bomb")
+                    action = Bombots.BOMB
+            else:
+                action = self.get_movement_direction(agent_pos, next_tile)
+                print("move towards enemy")
+
+    
+
+        print("\n")
+
+        # self.known_bombs["1-1"] = [30, 2, (1,1)]
+
+        print(f"Bombs: {self.known_bombs}")
+        danger_zone = self.get_danger_zone(env_state)
+        print(f"DAnger cONE: {danger_zone}")
+        if len(danger_zone) > 0:
+            print(f"Closest safe node: {self.get_nearest_safe_tile(env_state)}")
+
+        # self.get_shortest_path_to(env_state, "9-9")
+
+        # print("FIRE MAP")
+        # print(self.env.fire_map)
+
+        # action = Bombots.NOP
         return action
 
 
+# DEBUGGING SHIDD
+def print_path(node):
+    if node.shortest_path_via == None:
+        return f"{node.symbol}"
+    else:
+        return f"{print_path(node.shortest_path_via)} -> {node.symbol}"
 
+# PATHFINDING SHIT DOWN HERE NO TOUCHIE >:^(
 class node:
     def __init__(self, symbol):
         self.symbol = symbol
@@ -247,13 +415,11 @@ class node:
         self.shortest_distance = float('inf')
         self.shortest_path_via = None
 
-        nodes.append(self)
-
+    # Adds another node as a weighted edge
     def add_edge(self, node, distance):
-        edge = [node, distance]
-        if not edge in self.edges:
-            self.edges.append(edge)
+        self.edges.append([node, distance])
 
+    # Checks every node it has an edge to, and updates it if neccessary
     def update_edges(self):
         for edge in self.edges:
             distance_via = self.shortest_distance + edge[1]
@@ -261,71 +427,143 @@ class node:
                 edge[0].shortest_distance = distance_via
                 edge[0].shortest_path_via = self
 
-# Couples two nodes
-def make_edge(node1, node2, distance):
-    node1.add_edge(node2, distance)
-    # node2.add_edge(node1, distance)
+    def get_coordinates(self):
+        x, y = int(self.symbol.split("-")[0]), int(self.symbol.split("-")[1])
+        return (x, y)
 
-# Does the heavy lifting
-# Just a python implementation of dijkstras shortest path
-def dijkstra(start, end):
-    global nodes
+def get_node(nodes, symbol):
+    """
+    Searches "nodes" for node with symbol "symbol" and returns it if found.
+
+    PARAMS:\n
+        nodes (array): array of nodes to search from
+        symbol (str): string to search matches for
+    RETURNS:\n
+        node: if match is found
+        None: if no match found
+    """
+
+    for node in nodes:
+        if node.symbol == symbol:
+            return node
+    return None
+
+def make_nodes(edge_data, *args):
+    """
+    Takes an array of edges and makes them into node objects.
+
+    PARAMS:
+        edge_data (arr): array of edges with format [start_node (str), end_node (str), distance (int)]
+        *args (boolean): True if you want digraph, False if not (default is True) Can save time when entering edges by hand.
+        *args (array[str]): array of symbols to use for nodes that may not have edges and are not included in "edge_data"
+    RETURNS:
+        array: array of the nodes that it created
+    """
+
+    nodes = []
+
+    # Decide if digraph or not
+    if len(args) > 0:
+        digraph = args[0]
+    else:
+        digraph = True
+
+    # Fill in empty nodes
+    if len(args) > 1:
+        for symbol in args[1]:
+            nodes.append(node(symbol))
+
+    # Make edges into nodes and couple them
+    for edge in edge_data:
+        node1 = get_node(nodes, edge[0])
+        node2 = get_node(nodes, edge[1])
+
+        if node1 == None:
+            node1 = node(edge[0])
+
+        if node2 == None:
+            node2 = node(edge[1])
+
+        node1.add_edge(node2, edge[2])
+        if not digraph: node2.add_edge(node1, edge[2])  # REMOVE THIS IF YOU WANT DIGRAPH 2/2
+    
+        if node1 not in nodes: nodes.append(node1)
+        if node2 not in nodes: nodes.append(node2)
+
+    return nodes
+
+def get_path_array(node):
+    """
+    Takes an end node and gives you every node (in order) for the shortest path to it.
+
+    PARAMS:
+        node (node): end node
+    
+    RETURNS:
+        array[nodes]: every note you need to visit (in order)
+    """
+    if node.shortest_path_via == None:
+        return [node]
+    else:
+        return get_path_array(node.shortest_path_via) + [node]
+
+def dijkstra(nodes, start, end):
+    """
+    Finds the fastest way from "start" to "end" (usually what dijkstra does).
+
+    PARAMS:
+        nodes (array: array of nodes
+        start (node): start of path
+        end (node): end of path
+
+    RETURNS
+        array[node]: path of nodes from "start" to "end" (inclusive) if one is found
+        None: if no path is found
+    """
     queue = []
     path = []
 
+    # Setup
     queue = nodes.copy()
     start.shortest_distance = 0
     queue.sort(key=lambda node: node.shortest_distance)
 
+    # Exploration loop
     while queue[0] != end:
         node = queue[0]
         node.update_edges()
         path.append(queue.pop(0))
         queue.sort(key=lambda node: node.shortest_distance)
     
-    print(print_path(end))
-    print(f"Distance: {end.shortest_distance}")
+    # Test if there actually was a path found
+    if end.shortest_distance == float('inf'):
+        print("End has not been found")
+        return None
+
     return get_path_array(end)
 
-# Literally just prints the path
-def print_path(node):
-    if node.shortest_path_via == None:
-        return f"{node.symbol}"
-    else:
-        return f"{print_path(node.shortest_path_via)} -> {node.symbol}"
+def bellman_ford(nodes, edge_count, start):
+    """
+    Takes an array of nodes, and finds the shortest distance from "start" to each of them
 
-def get_path_array(node):
-    if node.shortest_path_via == None:
-        return [node.symbol]
-    else:
-        return get_path_array(node.shortest_path_via) + [node.symbol]
+    PARAMS:
+        nodes (array[node]): array of the relevant nodes
+        edge_count (int): number of edges (not nodes)
+        start (node): starting node to search from
+    
+    RETURNS:
+        array[node]: array of the nodes sorted by ascending distance to "start"
+    """
 
-# Does what it says on the tin
-def get_node(symbol):
-    for node in nodes:
-        if node.symbol == symbol:
-            return node
-    return 0
+    start.shortest_distance = 0
+    
+    for i in range(edge_count):
+        for node in nodes:
+            for edge in node.edges:
+                if node.shortest_distance + edge[1] < edge[0].shortest_distance:
+                    edge[0].shortest_distance = node.shortest_distance + edge[1]
+                    edge[0].shortest_path_via = node
 
-# Takes a set of edges, as well as start and end nodes
-def solve_dijkstra(edges, start, end):
-    # Make edges into nodes and couple them
-    global nodes
-    nodes = []
-    for edge in edges:
-        a = get_node(edge[0])
-        b = get_node(edge[1])
+    nodes.sort(key=lambda x: x.shortest_distance)
 
-        if a == 0:
-            a = node(edge[0])
-
-        if b == 0:
-            b = node(edge[1])
-
-        a.add_edge(b, edge[2])
-        # b.add_edge(a, edge[2])
-
-    # Solve path
-    return dijkstra(get_node(start), get_node(end))
-
-            
+    return nodes
