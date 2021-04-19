@@ -4,6 +4,7 @@ import numpy as np
 sys.path.append("..")
 from bombots.environment import Bombots
 from collections import Counter
+import time
 
 debug_print = False
 
@@ -353,6 +354,10 @@ class TestAgent:
         return Bombots.NOP
 
     def act(self, env_state):
+
+        tic = time.perf_counter()
+
+
         if debug_print: print("\n\nPREINTING MY BUILLSHIT HERE")
 
         if debug_print: print("UPDATEING")
@@ -457,6 +462,10 @@ class TestAgent:
         # print(self.env.fire_map)
 
         # action = Bombots.NOP
+
+
+        toc = time.perf_counter()
+        # print(f"{toc-tic:0.4f} seconds")
         return action
 
 
