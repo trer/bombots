@@ -2,7 +2,7 @@ import random
 import sys
 import numpy as np
 sys.path.append("..")
-from environment.bombots import Bombots
+from bombots.environment import Bombots
 from collections import Counter
 
 class NopAgent:
@@ -33,5 +33,5 @@ class NopAgent:
     def __init__(self, env):
         self.env = env
 
-    def act(self, env_state):
+    def act(self, state):
         return Bombots.NOP
