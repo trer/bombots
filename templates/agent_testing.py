@@ -8,6 +8,14 @@ import time
 
 debug_print = False
 
+# TODO:
+# go for powerups
+# dont corner yourself
+# corner enemy
+# chain reactions?
+# use more bombs
+
+
 class TestAgent:
     
     # Feel free to remove the comments from this file, they 
@@ -409,6 +417,7 @@ class TestAgent:
                 # place bomb
             # else:
                 # move towards enemy
+
         if debug_print: print("MAKE DECISION")
 
         # if agent on opponent and no bomb
