@@ -252,6 +252,7 @@ class TestAgent:
             destination (string) / (tuple): string of the destination in the form 'x-y' or tuple in the form (x, y)
         RETURNS:
             array[(x,y)]: ordered array of the coord-tuples to visit
+            int: the weighted distance to the destination tile
         """
 
         if type(destination) == tuple:
@@ -309,7 +310,7 @@ class TestAgent:
         for node in path_nodes:
             path_coords.append(node.get_coordinates())
 
-        return path_coords
+        return path_coords, end.shortest_distance
 
     # Finished
     def get_nearest_safe_tile(self, env_state):
@@ -409,7 +410,7 @@ class TestAgent:
         shortest_path = []
         path_set = False
         for pu in self.env.upers:
-            path = self.get_shortest_path_to(env_state, (pu.pos_x, pu.pos_y))
+            path, temp_distance = self.get_shortest_path_to(env_state, (pu.pos_x, pu.pos_y))
             if not path_set or len(shortest_path) > len(path):
                 shortest_path = path
                 path_set = True
@@ -443,7 +444,7 @@ class TestAgent:
 
         # get path to enemy
         enemy_pos_string = f"{enemy_pos[0][0]}-{enemy_pos[0][1]}"
-        path_to_enemy = self.get_shortest_path_to(env_state, enemy_pos_string)
+        path_to_enemy, temp_distance = self.get_shortest_path_to(env_state, enemy_pos_string)
         path_to_closest_upers = self.get_closest_upgrade(env_state)
         objective_path = path_to_closest_upers if path_to_closest_upers is not None else path_to_enemy
 
@@ -494,7 +495,7 @@ class TestAgent:
                 if debug_print: print("move towards safety")
                 next_safe_tile = self.get_nearest_safe_tile(env_state)
                 if debug_print: print(f"Nearest safe tile is {next_safe_tile}")
-                path_to_nearest_safe_tile = self.get_shortest_path_to(env_state, next_safe_tile)
+                path_to_nearest_safe_tile, temp_distance = self.get_shortest_path_to(env_state, next_safe_tile)
                 next_tile_towards_safety = path_to_nearest_safe_tile[1]
                 action = self.get_movement_direction(agent_pos, next_tile_towards_safety)
                 pass
