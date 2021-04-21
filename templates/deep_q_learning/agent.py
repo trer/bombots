@@ -3,8 +3,8 @@ import random
 import numpy as np
 from collections import deque
 
-from NOP import NopAgent
-from agent_that_does_not_suicide import BeatNopAgent
+from templates.NOP import NopAgent
+from templates.agent_that_does_not_suicide import BeatNopAgent
 from bombots.environment import Bombots
 from model import Linear_QNet, QTrainer
 from helper import plot
@@ -17,14 +17,17 @@ LR = 0.001
 class Agent:
 
     def __init__(self, env):
+        self.danger_zone = {}
         self.training_agent = BeatNopAgent(env)
         self.env = env
         self.n_games = 2
         self.epsilon = 0.5  # randomness
-        self.gamma = 0.9  # discount rate
+        self.gamma = 0.99  # discount rate
         self.memory = deque(maxlen=MAX_MEMORY)  # popleft()
         self.model = Linear_QNet(6, 6)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
+        self.long_state = deque([np.zeros((11, 11)) for ____ in range(35)], maxlen=35)    # popleft()
+        self.model.apply(self.model.init_weights)
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))  # popleft if MAX_MEMORY is reached
@@ -44,8 +47,7 @@ class Agent:
         map = np.add(map, state[3])
         map = np.add(map, state[4])
         map = np.add(map, state[5])
-        map = map.flatten()
-        return np.array(map, dtype=int)
+        return np.array(map, dtype=np.float32)
 
     def train_long_memory(self):
         if len(self.memory) > BATCH_SIZE:
@@ -55,32 +57,29 @@ class Agent:
 
         states, actions, rewards, next_states, dones = zip(*mini_sample)
         # print(len(states))
-        #self.trainer.train_step(states, actions, rewards, next_states, dones)
-        for state, action, reward, next_state, done in mini_sample:
-            self.trainer.train_step(state, action, reward, next_state, done)
+        self.trainer.train_step(states, actions, rewards, next_states, dones)
 
     def train_short_memory(self, state, action, reward, next_state, done):
         self.trainer.train_step(state, action, reward, next_state, done)
 
     def act(self, state):
         # random moves: tradeoff exploration / exploitation
-        if self.n_games < 80:
-            self.epsilon = 80 - self.n_games
+        if self.n_games < 500:
+            self.epsilon = 500 - self.n_games
         elif self.n_games < 10000:
-            self.epsilon = 4
+            self.epsilon = 2
         final_move = [0, 0, 0, 0, 0, 0]
-        if random.randint(0, 80) < self.epsilon:
+        if random.randint(0, 500) < self.epsilon:
             if self.n_games < 10000:
-                return self.training_agent.act(state)
+                move = random.randint(0, 5)
+                final_move[move] = 1
             else:
-
                 move = random.randint(0, 5)
                 final_move[move] = 1
         else:
             #state = self.get_state(state)
             state1 = np.copy(state)
-            state1 = np.reshape(state1, (1, 6, 11, 11))
-            state0 = torch.tensor(state1, dtype=torch.float)
+            state0 = torch.tensor(state1, dtype=torch.float).reshape(1, 35, 11, 11)
             prediction = self.model(state0)
             move = torch.argmax(prediction).item()
             final_move[move] = 1
@@ -88,7 +87,7 @@ class Agent:
         if final_move[0] == 1:
             return self.env.BOMB
         elif final_move[1] == 1:
-            return self.env.UP
+            return self.env.NOP
         elif final_move[2] == 1:
             return self.env.DOWN
         elif final_move[3] == 1:
@@ -96,9 +95,8 @@ class Agent:
         elif final_move[4] == 1:
             return self.env.LEFT
         elif final_move[5]:
-            return self.env.NOP
+            return self.env.UP
         raise Exception
-
 
 def train():
     plot_scores = []
@@ -111,7 +109,6 @@ def train():
         state_mode=Bombots.STATE_TENSOR,  # So the state is returned as a tensor
         verbose=False,  # Useful printing during execution
         render_mode=Bombots.RENDER_GFX_RGB,  # Change this to Bombots.NO_RENDER if you remove the render call RENDER_GFX_RGB
-        seed=2
     )
     agents = [Agent(env), NopAgent(env)]
     agent = agents[0]
@@ -122,12 +119,13 @@ def train():
     info = {}
     last = {'wins': 0, 'boxes': 0, 'loss': 0}
 
-    state_old = states[0]
+    agent.long_state.append(agent.get_state(states[0]))
+    state_old = np.array(agent.long_state, dtype=np.float32)#.reshape((1, 35, 11, 11))
+
     count_max = 100
     count = 0
 
     while True:
-
         # get move
         final_moves = [agents[i].act(state_old) for i in range(len(agents))]
         final_move = final_moves[0]
@@ -140,9 +138,11 @@ def train():
         env.render()
 
         state_old1 = np.copy(state_old)
-        state_old1 = np.reshape(state_old1, (1, 6, 11, 11))
-        state_new1 = np.copy(state_new[0])
-        state_new1 = np.reshape(state_new1, (1, 6, 11, 11))
+        #print("state_old", state_old1.shape)
+        #state_old1 = np.reshape(state_old1, (1, 35, 6, 11, 11))
+        agent.long_state.append(agent.get_state(state_new[0]))
+        state_new1 = np.array(agent.long_state, dtype=np.float32)#.reshape((1, 35, 11, 11))
+        #state_new1 = np.reshape(state_new1, (1, 35, 6, 11, 11))
 
         reward = rewards[0]
 
@@ -153,16 +153,21 @@ def train():
         # remember
         agent.remember(state_old1, final_move, reward, state_new1, done)
 
-        state_old = state_new[0]
+        state_old = np.array(agent.long_state)#.reshape((1, 35, 11, 11))
 
         if count < count_max:
             count += 1
+        #if not done and info['player1']['boxes'] - last['boxes'] > 0:
+        #    print("bombom not done")
 
 
         if done:
             # train long memory, plot result
             states = env.reset()
-            state_old = states[0]
+
+            agent.long_state = deque([np.zeros((11, 11)) for ____ in range(35)], maxlen=35)
+            agent.long_state.append(agent.get_state(states[0]))
+            state_old = np.array(agent.long_state)#.reshape((1, 35, 11, 11))
             agent.n_games += 1
             agent.train_long_memory()
 

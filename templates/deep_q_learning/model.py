@@ -35,7 +35,7 @@ class Linear_QNet(nn.Module):
     def __init__(self, input_size, output_size):
         super(Linear_QNet, self).__init__()
 
-        self.conv1 = nn.Conv2d(6, 32, 4, 1)
+        self.conv1 = nn.Conv2d(35, 32, 4, 1)
         self.relu1 = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv2d(32, 64, 4, 1)
         self.relu2 = nn.ReLU(inplace=True)
@@ -47,18 +47,35 @@ class Linear_QNet(nn.Module):
 
 
     def forward(self, x):
+        # print("x", x.shape)
+        print("sdfx", x)
         out = self.conv1(x)
         out = self.relu1(out)
+        #print("convd1", out, out.shape)
+        # print("out", out.shape)
         out = self.conv2(out)
         out = self.relu2(out)
+        print("out conv2", out, out.shape)
         out = self.conv3(out)
         out = self.relu3(out)
+        #print("convout", out)
+        #print("out", out.shape)
         out = out.view(out.size()[0], -1)
+        #print(out)
         #out = self.fc4(out)
         #out = self.relu4(out)
         out = self.fc5(out)
+        #print(out)
+        # print(out.shape)
 
         return out
+
+    def init_weights(self, m):
+        print("init weights")
+        if type(m) == nn.Conv2d or type(m) == nn.Linear:
+            torch.nn.init.uniform_(m.weight, -0.01, 0.01)
+            m.bias.data.fill_(0.01)
+
 
     def num_flat_features(self, x):
         size = x.size()[1:]  # all dimensions except the batch dimension
@@ -68,7 +85,7 @@ class Linear_QNet(nn.Module):
         return num_features
 
     def save(self, file_name='model.pth'):
-        model_folder_path = './model'
+        model_folder_path = 'model'
         if not os.path.exists(model_folder_path):
             os.makedirs(model_folder_path)
 
@@ -93,7 +110,7 @@ class QTrainer:
         if type(done) == bool:
             # print("unsqeezing")
             # (1, x)
-            # state = torch.unsqueeze(state, 0)
+            state = torch.unsqueeze(state, 0)
             next_state = torch.unsqueeze(next_state, 0)
             action = torch.unsqueeze(action, 0)
             reward = torch.unsqueeze(reward, 0)
@@ -108,7 +125,7 @@ class QTrainer:
 
             Q_new = reward[idx]
             if not done[idx]:
-                Q_new = reward[idx] + self.gamma * torch.max(self.model(next_state[idx]))
+                Q_new = reward[idx] + self.gamma * torch.max(self.model(next_state[idx].reshape(1, 35, 11, 11)))
 
             target[idx][torch.argmax(action[idx]).item()] = Q_new
 

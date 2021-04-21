@@ -1,10 +1,9 @@
 import numpy as np
 
 from bombots.environment import Bombots
-from templates.agent_rl import RLAgent
-from NEAT.NEAT import NeatAgent
-from agent_that_does_not_suicide import BeatNopAgent
-from NOP import NopAgent
+from templates.NEAT.NEAT import NeatAgent
+from templates.agent_that_does_not_suicide import BeatNopAgent
+from templates.NOP import NopAgent
 import neat
 import os
 
@@ -21,7 +20,7 @@ env = Bombots(
     verbose     = False,                  # Useful printing during execution
     render_mode = Bombots.RENDER_GFX_RGB, # Change this to Bombots.NO_RENDER if you remove the render call
 )
-config_path = os.path.join('', 'NEAT/config-feedforward')
+config_path = os.path.join('', 'templates/NEAT/config-feedforward')
 
 config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                              neat.DefaultSpeciesSet, neat.DefaultStagnation,

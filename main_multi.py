@@ -4,13 +4,10 @@ import neat
 import numpy as np
 
 from bombots.environment import Bombots
-from templates.agent_random import RandomAgent
-from templates.agent_rulebased import RuleBasedAgent
 import pygame as pg
-import random
-from NOP import NopAgent
-from agent_that_does_not_suicide import BeatNopAgent
-from NEAT.NEAT import NeatAgent
+from templates.NOP import NopAgent
+from templates.agent_that_does_not_suicide import BeatNopAgent
+from templates.NEAT.NEAT import NeatAgent
 
 # For Travis
 if '--novid' in sys.argv:
@@ -90,7 +87,7 @@ def eval_genomes(genomes):
 
 
 def main():
-    config_path = os.path.join('', 'NEAT/config-feedforward')
+    config_path = os.path.join('', 'templates/NEAT/config-feedforward')
 
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
