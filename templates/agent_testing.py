@@ -54,7 +54,7 @@ class TestAgent:
         self.enemy_ammo = 1
 
     # Finished
-    def get_danger_zone(self, env_state):
+    def get_danger_zone(self, env_state, *args):
         """
         Gives you a map of tiles to avoid bc they're in bomb range, or on fucking fire.
         Takes into account bomb strength, as well as boxes and walls
@@ -73,10 +73,15 @@ class TestAgent:
 
         debug = np.zeros((wx,wy))
 
-        # Update base on bomb reach (takes into account walls and boxes)
-        for key in self.known_bombs.keys():
+        if len(args) == 1:
+            bomb_dict = args[0]
+        else:
+            bomb_dict = self.known_bombs
 
-            bomb_info = self.known_bombs[key]
+        # Update base on bomb reach (takes into account walls and boxes)
+        for key in bomb_dict.keys():
+
+            bomb_info = bomb_dict[key]
             bomb_pos = bomb_info[2]
             bomb_strength = bomb_info[1]
             x,y = bomb_pos
