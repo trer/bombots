@@ -107,6 +107,8 @@ class TestAgent:
                     danger_zone.append((x1, y))
                     debug[x1,y] = 1
                     if debug_print: print("DANGER RIGHT")
+                else:
+                    break
             # Searching left
             for x2 in range(x-1, x-1-bomb_strength, -1):
                 if x2 == -1:
@@ -115,6 +117,8 @@ class TestAgent:
                     danger_zone.append((x2, y))
                     debug[x2,y] = 1
                     if debug_print: print("DANGER LEFT")
+                else:
+                    break
             # Searching down
             for y1 in range(y+1, y+1+bomb_strength):
                 if y1 == wy:
@@ -123,6 +127,8 @@ class TestAgent:
                     danger_zone.append((x, y1))
                     debug[x,y1] = 1
                     if debug_print: print("DANGER BELOW")
+                else:
+                    break
             # Searching up
             for y2 in range(y-1, y-1-bomb_strength, -1):
                 if y2 == -1:
@@ -131,6 +137,8 @@ class TestAgent:
                     danger_zone.append((x, y2))
                     debug[x,y2] = 1
                     if debug_print: print("DANGER ABOVE")
+                else:
+                    break
             # Add bomb itself to the danger zone
             danger_zone.append(bomb_pos)
             debug[x,y] = 1
