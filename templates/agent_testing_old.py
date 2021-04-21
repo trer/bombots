@@ -14,7 +14,7 @@ edge_count = 0
 
 
 
-class TestAgent:
+class OLDTestAgent:
     
     # Feel free to remove the comments from this file, they 
     # can be found in the source on GitHub at any time

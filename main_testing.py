@@ -3,6 +3,7 @@ from templates.agent_NOP import NOPAgent
 from templates.agent_rulebased import RuleBasedAgent
 from templates.agent_that_does_not_suicide import BeatNopAgent
 from templates.agent_testing import TestAgent
+from templates.agent_testing_old import OLDTestAgent
 
 # For Travis
 import sys
@@ -20,7 +21,7 @@ env = Bombots(
 
 # agents = [TestAgent(env), NOPAgent(env)]
 # agents = [TestAgent(env), RuleBasedAgent(env)]
-agents = [TestAgent(env), BeatNopAgent(env)]
+agents = [TestAgent(env), OLDTestAgent(env)]
 # agents = [BeatNopAgent(env), RuleBasedAgent(env)]
 
 if '--test' not in sys.argv:
