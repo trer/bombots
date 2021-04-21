@@ -47,8 +47,8 @@ class BeatNopAgent:
         possible_moves = []
 
         # Get agent coordinates from dictionary
-        x, y = np.where(state[0] == 1)
-        x, y = x[0], y[0]
+        x, y = env_state['self_pos']
+
         self.pos = (x, y)
 
         # Combine box map and wall map into one collision matrix (as both are solid)
@@ -74,7 +74,7 @@ class BeatNopAgent:
             if y + 1 in range(0, self.env.height) and solid_map[x][y + 1] == 0: possible_moves.append(Bombots.DOWN)
             if y - 1 in range(0, self.env.height) and solid_map[x][y - 1] == 0: possible_moves.append(Bombots.UP)
 
-        # If standing on a bomb [Just an example, not used here]
+
 
         # If possible, consider bombing
         state_dict = self.env.get_state_dict(self.env.bbots[1])
