@@ -9,7 +9,7 @@ import time
 debug_print = False
 
 # TODO:
-# go for powerups
+# go for powerups - Tor
 # dont corner yourself
 # corner enemy
 # chain reactions?
@@ -191,7 +191,7 @@ class TestAgent:
 
                 # compare positions to enemy and agent
                 # update relevant player
-                if (pu.x, pu.y) == env_state['self_pos']:
+                if (pu.pos_x, pu.pos_y) == env_state['self_pos']:
                     if pu.upgrade_type == 0:
                         self.ammo += 1
                     else:

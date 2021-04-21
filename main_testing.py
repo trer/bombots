@@ -1,7 +1,7 @@
 from bombots.environment import Bombots
 from templates.agent_NOP import NOPAgent
 from templates.agent_rulebased import RuleBasedAgent
-from agent_that_does_not_suicide import BeatNopAgent
+from templates.agent_that_does_not_suicide import BeatNopAgent
 from templates.agent_testing import TestAgent
 
 # For Travis
