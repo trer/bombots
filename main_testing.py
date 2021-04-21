@@ -18,9 +18,9 @@ env = Bombots(
     render_mode = Bombots.RENDER_GFX_RGB # Change this to Bombots.NO_RENDER if you remove the render call
 )
 
-agents = [TestAgent(env), NOPAgent(env)]
+# agents = [TestAgent(env), NOPAgent(env)]
 # agents = [TestAgent(env), RuleBasedAgent(env)]
-# agents = [TestAgent(env), BeatNopAgent(env)]
+agents = [TestAgent(env), BeatNopAgent(env)]
 # agents = [BeatNopAgent(env), RuleBasedAgent(env)]
 
 if '--test' not in sys.argv:

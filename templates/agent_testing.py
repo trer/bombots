@@ -9,7 +9,21 @@ import time
 debug_print = False
 
 # TODO:
-# go for powerups - Tor
+# fix bug where boxes are not calculated into safe_zone
+"""
+1 = unsafe
+0 = safe
+B = Bomb
+C = crate
+Should be like this:
+[[1, 0, 0],
+[B, C, 0],
+[1, 0, 0]] 
+But is like this
+[[1, 0, 0],
+[B, C, 1],
+[1, 0, 0]] 
+"""
 # dont corner yourself
 # corner enemy
 # chain reactions?
@@ -17,7 +31,7 @@ debug_print = False
 
 
 class TestAgent:
-    
+
     # Feel free to remove the comments from this file, they 
     # can be found in the source on GitHub at any time
 
@@ -40,7 +54,7 @@ class TestAgent:
     # env_state['agent_pos'] - Coordinates of the controlled bot - (x, y) tuple
     # env_state['enemy_pos'] - Coordinates of the opponent bot   - (x, y) tuple
     # env_state['bomb_pos']  - List of bomb coordinates          - [(x, y), (x, y)] list of tuples
-    
+
     def __init__(self, env):
         self.env = env
         self.known_bombs = {}
@@ -120,7 +134,7 @@ class TestAgent:
             # Add bomb itself to the danger zone
             danger_zone.append(bomb_pos)
             debug[x,y] = 1
-        
+
         # Add fire squares
         for x in range(0, wx):
             for y in range(0, wy):
@@ -165,7 +179,7 @@ class TestAgent:
                 else:
                     bomb_info = [30, self.enemy_strength, bomb]
                 self.known_bombs[bomb_string] = bomb_info
-        
+
         # Weed out bombs that have exploded preemptively
         rem = []
         for key in self.known_bombs.keys():
@@ -223,7 +237,7 @@ class TestAgent:
             destination = f"{destination[0]}-{destination[1]}"
 
         edge_data = []
-        
+
         wx, wy = self.env.wall_map.shape
 
         # Turn playing field into digraph
@@ -238,7 +252,7 @@ class TestAgent:
                             if self.env.box_map[x-1][y] == 1:
                                 distance = 33
                             edge_data.append([f"{x}-{y}", f"{x-1}-{y}", distance])
-                    
+
                     # Edge to tile below
                     if x < wx-1:
                         if self.env.wall_map[x+1][y] == 0:
@@ -358,8 +372,27 @@ class TestAgent:
             return Bombots.DOWN
         if y > ny:
             return Bombots.UP
-        
+
         return Bombots.NOP
+
+    # Finished
+    def get_closest_upgrade(self, env_state):
+        """ Uses get_shortest_path_to on all upgrades on the map and returns the pos
+        :param: the state of the current map
+        :return path to upgrade with lowest weight (aka the one it can get to the fastest)
+        array[(x,y)]: ordered array of the coord-tuples to visit
+        if there are no upgrades left on the map it will return None
+        """
+        shortest_path = []
+        path_set = False
+        for pu in self.env.upers:
+            path = self.get_shortest_path_to(env_state, (pu.pos_x, pu.pos_y))
+            if not path_set or len(shortest_path) > len(path):
+                shortest_path = path
+                path_set = True
+        if path_set:
+            return shortest_path
+        return None
 
     def act(self, env_state):
 
@@ -388,11 +421,13 @@ class TestAgent:
         # get path to enemy
         enemy_pos_string = f"{enemy_pos[0][0]}-{enemy_pos[0][1]}"
         path_to_enemy = self.get_shortest_path_to(env_state, enemy_pos_string)
+        path_to_closest_upers = self.get_closest_upgrade(env_state)
+        objective_path = path_to_closest_upers if path_to_closest_upers is not None else path_to_enemy
 
-        if len(path_to_enemy) > 1:
-            next_tile = path_to_enemy[1]
+        if len(objective_path) > 1:
+            next_tile = objective_path[1]
         else:
-            next_tile = path_to_enemy[0]
+            next_tile = objective_path[0]
         nx, ny = next_tile
 
 
@@ -400,7 +435,7 @@ class TestAgent:
         if debug_print: print(f"NT POSITION: {next_tile}")
 
         # SETUP END
-        
+
 
 
         # DECISION MAKING
@@ -411,12 +446,16 @@ class TestAgent:
             # else:
                 # move towards safe
         # else:
-            # if enemy_path.next in danger_zone:
+            # if path_to_upers is not None:
+                # set objective to upers
+            # else:
+                # set objective to enemy
+            # if objective_path.next in danger_zone:
                 # NOP
-            # elif enemy_path.next == box:
+            # elif objective_path.next == box:
                 # place bomb
             # else:
-                # move towards enemy
+                # move towards objective
 
         if debug_print: print("MAKE DECISION")
 
@@ -451,7 +490,7 @@ class TestAgent:
                 action = self.get_movement_direction(agent_pos, next_tile)
                 if debug_print: print("move towards enemy")
 
-    
+
 
         # DEBUG SHIDD
 
@@ -564,7 +603,7 @@ def make_nodes(edge_data, *args):
 
         node1.add_edge(node2, edge[2])
         if not digraph: node2.add_edge(node1, edge[2])  # REMOVE THIS IF YOU WANT DIGRAPH 2/2
-    
+
         if node1 not in nodes: nodes.append(node1)
         if node2 not in nodes: nodes.append(node2)
 
@@ -612,7 +651,7 @@ def dijkstra(nodes, start, end):
         node.update_edges()
         path.append(queue.pop(0))
         queue.sort(key=lambda node: node.shortest_distance)
-    
+
     # Test if there actually was a path found
     if end.shortest_distance == float('inf'):
         print("End has not been found")
@@ -634,7 +673,7 @@ def bellman_ford(nodes, edge_count, start):
     """
 
     start.shortest_distance = 0
-    
+
     for i in range(edge_count):
         for node in nodes:
             for edge in node.edges:

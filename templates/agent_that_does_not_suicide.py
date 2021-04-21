@@ -32,11 +32,9 @@ class BeatNopAgent:
                 self.danger_zone[key] -= 1
 
         # find cross where bombs are
-        lst = np.argwhere(state[2] == 1)
+        lst = state['bomb_pos']
 
         for bomb in lst:
-            if bomb.size == 0:
-                break
             for i in range(0, self.env.width):
                 self.danger_zone[(i, bomb[1])] = 6
             for i in range(0, self.env.height):
@@ -47,7 +45,7 @@ class BeatNopAgent:
         possible_moves = []
 
         # Get agent coordinates from dictionary
-        x, y = env_state['self_pos']
+        x, y = state['self_pos']
 
         self.pos = (x, y)
 
