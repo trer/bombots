@@ -3,6 +3,7 @@ from templates.agent_NOP import NOPAgent
 from templates.agent_rulebased import RuleBasedAgent
 from templates.agent_that_does_not_suicide import BeatNopAgent
 from templates.agent_testing import TestAgent
+from templates.agent_v1_1 import Agentv_1_1
 from templates.agent_testing_old import OLDTestAgent
 
 # For Travis
@@ -19,9 +20,9 @@ env = Bombots(
     render_mode = Bombots.RENDER_GFX_RGB # Change this to Bombots.NO_RENDER if you remove the render call
 )
 
-agents = [TestAgent(env), NOPAgent(env)]
+# agents = [TestAgent(env), NOPAgent(env)]
 # agents = [TestAgent(env), RuleBasedAgent(env)]
-#agents = [TestAgent(env), OLDTestAgent(env)]
+agents = [TestAgent(env), NOPAgent(env)]
 # agents = [BeatNopAgent(env), RuleBasedAgent(env)]
 
 if '--test' not in sys.argv:
@@ -32,4 +33,6 @@ if '--test' not in sys.argv:
         
         env.render() # Comment out this call to train faster
         
-        if done: states = env.reset()
+        if done:
+            states = env.reset()
+            print(f"player1 wins: {info['player1']['wins']}, player2 wins: {info['player2']['wins']}")

@@ -33,7 +33,7 @@ But is like this
 # use more bombs
 
 
-class TestAgent:
+class Agentv_1_1:
 
     # Feel free to remove the comments from this file, they
     # can be found in the source on GitHub at any time

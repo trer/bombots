@@ -9,22 +9,9 @@ import time
 debug_print = False
 
 # TODO:
-# fix bug where boxes are not calculated into safe_zone
-"""
-1 = unsafe
-0 = safe
-B = Bomb
-C = crate
-Should be like this:
-[[1, 0, 0],
-[B, C, 0],
-[1, 0, 0]] 
-But is like this
-[[1, 0, 0],
-[B, C, 1],
-[1, 0, 0]] 
-"""
-# dont corner yourself
+# Go for powerups - I wonder if it just goes for the closest and not for the one that it can get to the fastest
+# Make fires scarier than bombs (bomb less scary the more time till explosion).
+# don't corner yourself
 # corner enemy
 # chain reactions?
 # use more bombs
@@ -197,6 +184,32 @@ class TestAgent:
         for key in rem:
             self.known_bombs.pop(key, None)
 
+    #Working
+    def check_place_bomb(self, env_state):
+        """Checks wheter it is safe to place a bomb.
+        Copys env_state
+        places a bomb at players position
+        Checks for safe_space
+        :param
+            env_state state of the map
+        :return
+            True/False if it is safe to place a bomb or not
+        """
+        state = dict(env_state)
+        state['bomb_pos'].append(state['self_pos'])
+        self.update_bombs(state)
+        danger_zone = self.get_danger_zone(env_state)
+        safe_tile = self.get_nearest_safe_tile(state)
+
+        if safe_tile is None:
+            print("did not place a bomb cause it would mean death.")
+            return False
+        #for pos in self.get_shortest_path_to(state, safe_tile):
+        #    if pos in danger_zone:
+        #        print("did not place a bomb because it was scary")
+        #        return False
+        return True
+
     # Finished
     def update_powerups(self, env_state):
         """
@@ -307,6 +320,7 @@ class TestAgent:
             env_state: the env_state given to self.act()
         RETURNS:
             (x, y) (int-tuple): coord-tuple of the closest safe nodet o stand on
+            None: if there are no safe tiles
         """
         danger_zone = self.get_danger_zone(env_state)
         solid_map = np.logical_or(self.env.box_map, self.env.wall_map)
@@ -354,7 +368,8 @@ class TestAgent:
             tile_node = get_node(nodes, f"{tile[0]}-{tile[1]}")
             if tile_node in close_nodes:
                 close_nodes.remove(tile_node)
-
+        if len(close_nodes) == 0:
+            return None
         return close_nodes[0].get_coordinates()
 
     # Finished
@@ -385,7 +400,7 @@ class TestAgent:
 
     # Finished
     def get_closest_upgrade(self, env_state):
-        """ Uses get_shortest_path_to on all upgrades on the map and returns the pos
+        """ Uses get_shortest_path_to on all upgrades on the map and returns the pos of the closest one.
         :param: the state of the current map
         :return path to upgrade with lowest weight (aka the one it can get to the fastest)
         array[(x,y)]: ordered array of the coord-tuples to visit
@@ -461,7 +476,8 @@ class TestAgent:
             # if objective_path.next in danger_zone:
                 # NOP
             # elif objective_path.next == box:
-                # place bomb
+                # if safe to place bomb:
+                    # place bomb
             # else:
                 # move towards objective
 
@@ -493,7 +509,10 @@ class TestAgent:
                     action = self.get_movement_direction(agent_pos, next_safe_tile)
                 else:
                     if debug_print: print("bomb")
-                    action = Bombots.BOMB
+                    if self.check_place_bomb(env_state):
+                        action = Bombots.BOMB
+                    else:
+                        action = Bombots.NOP
             else:
                 action = self.get_movement_direction(agent_pos, next_tile)
                 if debug_print: print("move towards enemy")
