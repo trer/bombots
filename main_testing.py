@@ -22,7 +22,7 @@ env = Bombots(
 
 # agents = [TestAgent(env), NOPAgent(env)]
 # agents = [TestAgent(env), RuleBasedAgent(env)]
-agents = [TestAgent(env), NOPAgent(env)]
+agents = [TestAgent(env), BeatNopAgent(env)]
 # agents = [BeatNopAgent(env), RuleBasedAgent(env)]
 
 if '--test' not in sys.argv:

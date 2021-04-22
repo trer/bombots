@@ -675,11 +675,13 @@ class TestAgent:
         if there are no upgrades left on the map it will return None
         """
         shortest_path = []
+        shortest_distance = 10000000
         path_set = False
         for pu in self.env.upers:
             path, temp_distance = self.get_shortest_path_to(env_state, (pu.pos_x, pu.pos_y))
-            if not path_set or len(shortest_path) > len(path):
+            if not path_set or shortest_distance > temp_distance:
                 shortest_path = path
+                shortest_distance = temp_distance
                 path_set = True
         if path_set:
             return shortest_path
