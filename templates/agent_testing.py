@@ -7,6 +7,7 @@ from collections import Counter
 import time
 
 debug_print = False
+has_printed = False
 
 # TODO:
 # Go for powerups - I wonder if it just goes for the closest and not for the one that it can get to the fastest
@@ -44,6 +45,7 @@ class TestAgent:
 
     def __init__(self, env):
         self.env = env
+        # self.known_bombs  - Dict of bombs - {"x-y":[tick, strength, bomb]}
         self.known_bombs = {}
 
         self.last_round_pu_map = []
@@ -54,6 +56,265 @@ class TestAgent:
         self.enemy_ammo = 1
 
     # Finished
+    def get_advanced_danger_zone(self, env_state, *args):
+        """
+        Makes a list of every tile affected by bombs, and when it will become fire (takes into account possible chain reactions)
+        PARAMS:
+            env_state: the env_state given to self.act()
+            *args[0]: a custom known_bombs dictionairy. Can be ommited
+        RETURNS:
+            dict[(x, y)] = (int): lookup-dictionairy which returns the ticks_until_detonation of any given tile inside the danger_zone. 0 if it is currently on fire (bad)
+        """
+        if len(args) == 1:
+            bomb_dict = args[0]
+        else:
+            bomb_dict = self.known_bombs
+        
+
+        bomb_affect = {}
+        bombs = []
+        # Get the reach of every bomb
+        for key in bomb_dict:
+            bomb_info = bomb_dict[key]
+            bomb_affect[bomb_info[2]] = self.chain_reaction(env_state, bomb_info, bomb_dict)
+            bombs.append(bomb_info)
+
+        # Sort bombs by ascending ticks
+        bombs.sort(key=lambda x: x[0])
+
+        # Group into seperate danger_zones based on reach and order of explosion
+        ticks_until_detonation = {}
+        exploded = []
+        for bomb in bombs:
+            print(f"Checking bomb: {bomb}")
+            if bomb not in exploded:
+                exploded.append(bomb)
+                # Adds itself to the dics
+                temp_dict = {bomb[2]: bomb}
+                # Look up bombs affected by this bomb
+                for affected_bomb in bomb_affect[bomb[2]]:
+                    # Adds every bomb affected by it to the dict
+                    temp_dict[affected_bomb[2]] = bomb_dict[get_coord_string(affected_bomb[2])]
+                    exploded.append(affected_bomb)
+
+                # Get danger zone of bomb set
+                # danger_zone_set = self.debug_get_danger_zone(env_state, temp_dict)
+                danger_zone_set = self.get_danger_zone(env_state, temp_dict)
+                print(f"Danger zone imposed: {danger_zone_set}\n")
+                for tile in danger_zone_set:
+                    if tile not in ticks_until_detonation.keys():
+                        ticks_until_detonation[tile] = bomb[0]
+
+        wx, wy = self.env.wall_map.shape
+        # Add actual fiery tiles
+        for x in range(0, wx):
+            for y in range(0, wy):
+                if self.env.fire_map[x][y] == 1:
+                    ticks_until_detonation[(x,y)] = 0
+
+        # Return dictionairy where dangerous tiles are key, and result is ticks until fire
+        return ticks_until_detonation
+
+    # Finished
+    def chain_reaction(self, env_state, bomb_info, bomb_dict_original):
+        """
+        Esencially just a help-function for get_advanced_danger_zone. Recursively checks which bombs can be triggered by which other bombs.
+        PARAMS:
+            env_state: the env_state given to self.act()
+            bomb_info (arr[int, int, (x,y)]): a bomb_info array as found in self.known_bombs
+            bomb_dict_original: the bomb_dictionairy to be used.
+        RETURNS:
+            arr[(x,y)]: list of the positions of every bomb that this bomb can reach / affect (through chain reaction or otherwise)
+        """
+
+        bomb_dict = bomb_dict_original.copy() # Make backup
+        
+        # Find the reach of the bomb, remove it from the list
+        bomb_name = get_coord_string(bomb_info[2])
+        temp = {bomb_name: bomb_info}
+        # bomb_reach = self.debug_get_danger_zone(env_state, temp)
+        bomb_reach = self.get_danger_zone(env_state, temp)
+        del bomb_dict[bomb_name]
+
+        can_reach = []
+        # Check for bombs that it will reach
+        for key in bomb_dict.keys():
+            bomb = bomb_dict[key]
+            if bomb[2] in bomb_reach:
+                # If it can reach the bomb, add to the list
+                can_reach.append(bomb)
+                # temp_dic_for_recursive_call = bomb_dict.copy()
+                
+                # Check all the bombs that this bomb can reach
+                recursion_reach = self.chain_reaction(env_state, bomb, bomb_dict)
+
+                # Add every bomb that it can reach to the list as well (will unwrap the array it gets passed down)
+                for bomb_in_recursive_reach in recursion_reach:
+                    can_reach.append(bomb_in_recursive_reach)
+        
+        return can_reach
+
+    # Just danger_zone but minus the random boxes. Used for testing dont worry about it
+    def debug_get_danger_zone(self, env_state, *args):
+        """
+        Gives you a map of tiles to avoid bc they're in bomb range, or on fucking fire.
+        Takes into account bomb strength, as well as boxes and walls
+
+        PARAMS:
+            env_state: the env_state given to self.act()
+            *args[0] dict{"x-y":[tick, strength, bomb]}: dictionairy of bombs as seen in self.known_bombs. Will override call to self.knwon_bombs
+        RETURNS:
+            array[(x,y) tuple]: list of tile-tuples to avoid
+        """
+
+        if debug_print: print("FINDING")
+        danger_zone = []
+
+        # solid_map = np.logical_or(self.env.box_map, self.env.wall_map)
+        solid_map = np.array([[ True, False,  True, False,  True, False,  True, False,  True,
+        False,  True],
+       [False, False, False, False, False, False, False, False, False,
+        False, False],
+       [ True, False,  True, False,  True, False,  True, False,  True,
+        False,  True],
+       [False, False, False, False, False, False, False, False, False,
+        False, False],
+       [ True, False,  True, False,  True, False,  True, False,  True,
+        False,  True],
+       [False, False, False, False, False, False, False, False, False,
+        False, False],
+       [ True, False,  True, False,  True, False,  True, False,  True,
+        False,  True],
+       [False, False, False, False, False, False, False, False, False,
+        False, False],
+       [ True, False,  True, False,  True, False,  True, False,  True,
+        False,  True],
+       [False, False, False, False, False, False, False, False, False,
+        False, False],
+       [ True, False,  True, False,  True, False,  True, False,  True,
+        False,  True]])
+
+        wx, wy = solid_map.shape
+
+        debug = np.zeros((wx,wy))
+
+        if len(args) == 1:
+            bomb_dict = args[0]
+        else:
+            bomb_dict = self.known_bombs.copy()
+
+        # Update base on bomb reach (takes into account walls and boxes)
+        for key in bomb_dict.keys():
+
+            bomb_info = bomb_dict[key]
+            bomb_pos = bomb_info[2]
+            bomb_strength = bomb_info[1]
+            x,y = bomb_pos
+
+            # Limits danger zone to bombs about to go off. Comment out if it buggy (yes)
+            # if bomb_info[0] > 10:
+            #     break
+
+
+            # Searching right
+            for x1 in range(x+1, x+1+bomb_strength):
+                if x1 == wx:
+                    break
+                if solid_map[x1][y] == False:
+                    danger_zone.append((x1, y))
+                    debug[x1,y] = 1
+                    if debug_print: print("DANGER RIGHT")
+                else:
+                    break
+            # Searching left
+            for x2 in range(x-1, x-1-bomb_strength, -1):
+                if x2 == -1:
+                    break
+                if solid_map[x2][y] == False:
+                    danger_zone.append((x2, y))
+                    debug[x2,y] = 1
+                    if debug_print: print("DANGER LEFT")
+                else:
+                    break
+            # Searching down
+            for y1 in range(y+1, y+1+bomb_strength):
+                if y1 == wy:
+                    break
+                if solid_map[x][y1] == False:
+                    danger_zone.append((x, y1))
+                    debug[x,y1] = 1
+                    if debug_print: print("DANGER BELOW")
+                else:
+                    break
+            # Searching up
+            for y2 in range(y-1, y-1-bomb_strength, -1):
+                if y2 == -1:
+                    break
+                if solid_map[x][y2] == False:
+                    danger_zone.append((x, y2))
+                    debug[x,y2] = 1
+                    if debug_print: print("DANGER ABOVE")
+                else:
+                    break
+            # Add bomb itself to the danger zone
+            danger_zone.append(bomb_pos)
+            debug[x,y] = 1
+
+        # Add fire squares
+        for x in range(0, wx):
+            for y in range(0, wy):
+                if self.env.fire_map[x][y] == 1:
+                    if (x,y) not in danger_zone:
+                        danger_zone.append((x,y))
+                        debug[x,y] = 1
+                        if debug_print: print("DANGER FIRE")
+        debug = np.fliplr(np.rot90(debug, 3))
+        if debug_print: print(debug)
+        return danger_zone
+
+    # Finished
+    def update_bombs(self, env_state):
+        """
+        Will update self.known_bombs with data from the current env_state.
+
+        PARAMS:
+            env_state: the env_state given to self.act()
+        """
+        # self.known_bombs  - Dict of bombs - { "x-y" : [tick, strength, bomb] }
+
+        # Tick down any known bombs, remove them if they explode
+        rem = []
+        for key in self.known_bombs.keys():
+            bomb = self.known_bombs[key]
+            if bomb[0] > 0:
+                bomb[0] -= 1
+            else:
+                rem.append(key)
+
+        # Remove any that are at 0 (exploded this round)
+        for key in rem:
+            self.known_bombs.pop(key, None)
+
+        # Keep track of the new bomb position, strength, as well as fuse ticks
+        for bomb in env_state['bomb_pos']:
+            bomb_string = f"{bomb[0]}-{bomb[1]}"
+            if not bomb_string in self.known_bombs.keys():
+                if env_state['self_pos'] == bomb:
+                    bomb_info = [30, self.agent_strength, bomb]
+                else:
+                    bomb_info = [30, self.enemy_strength, bomb]
+                self.known_bombs[bomb_string] = bomb_info
+
+        # Weed out bombs that have exploded preemptively
+        rem = []
+        for key in self.known_bombs.keys():
+            if not self.known_bombs[key][2] in env_state['bomb_pos']:
+                rem.append(key)
+
+        for key in rem:
+            self.known_bombs.pop(key, None)
+
+    # Finished
     def get_danger_zone(self, env_state, *args):
         """
         Gives you a map of tiles to avoid bc they're in bomb range, or on fucking fire.
@@ -61,6 +322,7 @@ class TestAgent:
 
         PARAMS:
             env_state: the env_state given to self.act()
+            *args[0] dict{"x-y":[tick, strength, bomb]}: dictionairy of bombs as seen in self.known_bombs. Will override call to self.knwon_bombs
         RETURNS:
             array[(x,y) tuple]: list of tile-tuples to avoid
         """
@@ -76,7 +338,7 @@ class TestAgent:
         if len(args) == 1:
             bomb_dict = args[0]
         else:
-            bomb_dict = self.known_bombs
+            bomb_dict = self.known_bombs.copy()
 
         # Update base on bomb reach (takes into account walls and boxes)
         for key in bomb_dict.keys():
@@ -425,6 +687,17 @@ class TestAgent:
 
     def act(self, env_state):
 
+        # DEBUG SHIDDDD
+        # test_dict = {"1-1": [30, 1, (1,1)],"3-1": [12, 2, (3,1)],"3-4": [10, 3, (3,4)],"3-7": [8, 1, (3,7)]}
+        # chain_result = []
+        # for key in test_dict.keys():
+        #     bomb_info = test_dict[key]
+        #     chain_result.append(self.chain_reaction(env_state, bomb_info, test_dict))
+        # print(chain_result)
+        # adz = self.get_advanced_danger_zone(env_state, self.get_danger_zone(env_state, test_dict), test_dict)
+        # print(adz)
+        # print("\n\n")
+
         tic = time.perf_counter()
 
 
@@ -549,6 +822,12 @@ class TestAgent:
         # print(f"{toc-tic:0.4f} seconds")
         return action
 
+def get_coord_string(tup):
+    if len(tup) == 2:
+        return f"{tup[0]}-{tup[1]}"
+
+def get_coord_tuple(string):
+    return (string.split("-")[0], string.split("-")[1])
 
 # DEBUGGING SHIDD
 def print_path(node):
