@@ -9,10 +9,10 @@ import time
 debug_print = False
 
 # TODO:
-# Go for powerups - I wonder if it just goes for the closest and not for the one that it can get to the fastest
 # Make fires scarier than bombs (bomb less scary the more time till explosion).
 # don't corner yourself
-# corner enemy
+# corner enemy - tor working - need to figure out how to check for where to place the bomb without ...
+# ... causing the agent to freak out about imaginary bombs. Change FSM
 # chain reactions?
 # use more bombs
 
@@ -190,15 +190,16 @@ class TestAgent:
             self.known_bombs.pop(key, None)
 
     #Working
-    def check_place_bomb(self, env_state):
+    def check_place_bomb(self, env_state, me=True):
         """Checks wheter it is safe to place a bomb.
         Copys env_state
         places a bomb at players position
         Checks for safe_space
         :param
             env_state state of the map
+            me: default=true, if set to False check for enemy
         :return
-            True/False if it is safe to place a bomb or not
+            int: number of moves to safety, returns -1 if there are no safe tiles.
         """
         state = dict(env_state)
         state['bomb_pos'].append(state['self_pos'])
@@ -206,14 +207,16 @@ class TestAgent:
         danger_zone = self.get_danger_zone(env_state)
         safe_tile = self.get_nearest_safe_tile(state)
 
+
         if safe_tile is None:
             print("did not place a bomb cause it would mean death.")
-            return False
+            return -1
         #for pos in self.get_shortest_path_to(state, safe_tile):
         #    if pos in danger_zone:
         #        print("did not place a bomb because it was scary")
         #        return False
-        return True
+        _, cost = self.get_shortest_path_to(env_state, safe_tile, me=me)
+        return cost
 
     # Finished
     def update_powerups(self, env_state):
@@ -248,7 +251,7 @@ class TestAgent:
         pass
 
     # Finished
-    def get_shortest_path_to(self, env_state, destination):
+    def get_shortest_path_to(self, env_state, destination, me=True):
         """
         Will find the shortest path from current position to the given destination.
 
@@ -305,8 +308,10 @@ class TestAgent:
                             edge_data.append([f"{x}-{y}", f"{x}-{y+1}", distance])
 
         nodes = make_nodes(edge_data)
-
-        agent_pos_string = f"{env_state['self_pos'][0]}-{env_state['self_pos'][1]}"
+        if me:
+            agent_pos_string = f"{env_state['self_pos'][0]}-{env_state['self_pos'][1]}"
+        else:
+            agent_pos_string = f"{env_state['opponent_pos'][0][0]}-{env_state['opponent_pos'][0][1]}"
         start = get_node(nodes, agent_pos_string)
         end = get_node(nodes, destination)
         path_nodes = dijkstra(nodes, start, end)
@@ -318,12 +323,13 @@ class TestAgent:
         return path_coords, end.shortest_distance
 
     # Finished
-    def get_nearest_safe_tile(self, env_state):
+    def get_nearest_safe_tile(self, env_state, me=True):
         """
         Finds the closest safe tile based on your current position.
 
         PARAMS:
             env_state: the env_state given to self.act()
+            me: boolean value that decides whether to find for yourself or your opponent, default=True
         RETURNS:
             (x, y) (int-tuple): coord-tuple of the closest safe nodet o stand on
             None: if there are no safe tiles
@@ -356,8 +362,14 @@ class TestAgent:
 
         # print(f"EDGE DATA: {edge_data}")
         nodes = make_nodes(edge_data)
+        if me:
+            ax, ay = env_state['self_pos']
+        else:
+            ax, ay = env_state['opponent_pos'][0][0], env_state['opponent_pos'][0][1]
 
-        ax, ay = env_state['self_pos']
+        if (ax, ay) not in danger_zone:
+            return tuple([ax, ay])
+
         agent_pos_string = f"{ax}-{ay}"
         start = get_node(nodes, agent_pos_string)
 
@@ -425,10 +437,49 @@ class TestAgent:
             return shortest_path
         return None
 
+    def corner_enemy(self, env_state, solid_map):
+        """This function looks at the current state and tries to find a position to place a bomb such that the enemy
+         will have as few places to go as possible.
+         :param
+            env_state the current state
+            solid_map the map that shows combination of boxes (unbreakable) and creates (breakable)
+         :returns
+            pos (x, y) to place a bomb so as to limit enemy movement
+            int spaces enemy has to move to reach safety
+            int cost number of turns predicted to achieve this action.
+
+        :returns None if there are no reachable spaces that will limit enemy movement.
+
+         Specifics: position much be reachable without placing bombs.
+        """
+        tile = None
+        safety = self.get_nearest_safe_tile(env_state, me=False)
+        our_cost = 0
+        opp_tile, opp_base_cost = self.get_shortest_path_to(env_state, safety, me=False)
+        print(self.env.box_map.shape)
+        for x, y in zip(range(self.env.width), range(self.env.height)):
+            if solid_map[x][y] == 1:
+                continue
+            tmp_tile, tmp_cost = self.get_shortest_path_to(env_state, f"{x}-{y}")
+            if tmp_cost < 30:
+                cost = self.check_place_bomb(env_state, me=False)
+                if cost == -1:
+                    return tmp_tile, cost, tmp_tile
+                if cost > opp_base_cost:
+                    tile = tmp_tile
+                    opp_base_cost = cost
+                    our_cost = tmp_cost
+
+
+        print("safety", safety)
+
+        return tile, opp_base_cost, our_cost
+
     def act(self, env_state):
 
         tic = time.perf_counter()
 
+        debug_print = True
 
         if debug_print: print("\n\nPREINTING MY BUILLSHIT HERE")
 
@@ -446,6 +497,10 @@ class TestAgent:
         enemy_pos = env_state['opponent_pos']
         # update powerups
         self.update_powerups(env_state)
+        solid_map = np.logical_or(self.env.box_map, self.env.wall_map)
+
+        # Where to place bomb
+        bomb_pos, enemy_cost, cost = self.corner_enemy(env_state, solid_map)
 
         # Agent is on opponent, and there is a bomb
 
@@ -517,7 +572,7 @@ class TestAgent:
                     action = self.get_movement_direction(agent_pos, next_safe_tile)
                 else:
                     if debug_print: print("bomb")
-                    if self.check_place_bomb(env_state):
+                    if self.check_place_bomb(env_state) != -1:
                         action = Bombots.BOMB
                     else:
                         action = Bombots.NOP
@@ -548,7 +603,7 @@ class TestAgent:
 
 
         toc = time.perf_counter()
-        # print(f"{toc-tic:0.4f} seconds")
+        print(f"{toc-tic:0.4f} seconds")
         return action
 
 
