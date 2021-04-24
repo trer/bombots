@@ -5,6 +5,7 @@ sys.path.append("..")
 from bombots.environment import Bombots
 from collections import Counter
 import time
+import copy
 
 debug_print = False
 has_printed = False
@@ -12,6 +13,7 @@ has_printed = False
 # TODO:
 # Make fires scarier than bombs (bomb less scary the more time till explosion).
 # don't corner yourself
+# set trap
 # corner enemy - tor working - need to figure out how to check for where to place the bomb without ...
 # ... causing the agent to freak out about imaginary bombs. Change FSM
 # chain reactions?
@@ -86,7 +88,6 @@ class TestAgent:
         ticks_until_detonation = {}
         exploded = []
         for bomb in bombs:
-            print(f"Checking bomb: {bomb}")
             if bomb not in exploded:
                 exploded.append(bomb)
                 # Adds itself to the dics
@@ -100,7 +101,6 @@ class TestAgent:
                 # Get danger zone of bomb set
                 # danger_zone_set = self.debug_get_danger_zone(env_state, temp_dict)
                 danger_zone_set = self.get_danger_zone(env_state, temp_dict)
-                print(f"Danger zone imposed: {danger_zone_set}\n")
                 for tile in danger_zone_set:
                     if tile not in ticks_until_detonation.keys():
                         ticks_until_detonation[tile] = bomb[0]
@@ -273,7 +273,7 @@ class TestAgent:
         return danger_zone
 
     # Finished
-    def update_bombs(self, env_state):
+    def update_bombs(self, env_state, extra_bombs_lst=[]):
         """
         Will update self.known_bombs with data from the current env_state.
 
@@ -295,8 +295,10 @@ class TestAgent:
         for key in rem:
             self.known_bombs.pop(key, None)
 
+        bombs_lst = extra_bombs_lst + env_state['bomb_pos']
+
         # Keep track of the new bomb position, strength, as well as fuse ticks
-        for bomb in env_state['bomb_pos']:
+        for bomb in bombs_lst:
             bomb_string = f"{bomb[0]}-{bomb[1]}"
             if not bomb_string in self.known_bombs.keys():
                 if env_state['self_pos'] == bomb:
@@ -305,6 +307,7 @@ class TestAgent:
                     bomb_info = [30, self.enemy_strength, bomb]
                 self.known_bombs[bomb_string] = bomb_info
 
+        """
         # Weed out bombs that have exploded preemptively
         rem = []
         for key in self.known_bombs.keys():
@@ -313,6 +316,8 @@ class TestAgent:
 
         for key in rem:
             self.known_bombs.pop(key, None)
+        """
+
 
     # Finished
     def get_danger_zone(self, env_state, *args):
@@ -339,6 +344,7 @@ class TestAgent:
             bomb_dict = args[0]
         else:
             bomb_dict = self.known_bombs.copy()
+
 
         # Update base on bomb reach (takes into account walls and boxes)
         for key in bomb_dict.keys():
@@ -409,50 +415,8 @@ class TestAgent:
         if debug_print: print(debug)
         return danger_zone
 
-    # Finished
-    def update_bombs(self, env_state):
-        """
-        Will update self.known_bombs with data from the current env_state.
-
-        PARAMS:
-            env_state: the env_state given to self.act()
-        """
-        # self.known_bombs  - Dict of bombs - { "x-y" : [tick, strength, bomb] }
-
-        # Tick down any known bombs, remove them if they explode
-        rem = []
-        for key in self.known_bombs.keys():
-            bomb = self.known_bombs[key]
-            if bomb[0] > 0:
-                bomb[0] -= 1
-            else:
-                rem.append(key)
-
-        # Remove any that are at 0 (exploded this round)
-        for key in rem:
-            self.known_bombs.pop(key, None)
-
-        # Keep track of the new bomb position, strength, as well as fuse ticks
-        for bomb in env_state['bomb_pos']:
-            bomb_string = f"{bomb[0]}-{bomb[1]}"
-            if not bomb_string in self.known_bombs.keys():
-                if env_state['self_pos'] == bomb:
-                    bomb_info = [30, self.agent_strength, bomb]
-                else:
-                    bomb_info = [30, self.enemy_strength, bomb]
-                self.known_bombs[bomb_string] = bomb_info
-
-        # Weed out bombs that have exploded preemptively
-        rem = []
-        for key in self.known_bombs.keys():
-            if not self.known_bombs[key][2] in env_state['bomb_pos']:
-                rem.append(key)
-
-        for key in rem:
-            self.known_bombs.pop(key, None)
-
-    #Working
-    def check_place_bomb(self, env_state, me=True):
+    # Finished, I think (if bombs start behaving weird it is probably this ones fault
+    def check_place_bomb(self, env_state, pos=None, me=True):
         """Checks wheter it is safe to place a bomb.
         Copys env_state
         places a bomb at players position
@@ -460,14 +424,20 @@ class TestAgent:
         :param
             env_state state of the map
             me: default=true, if set to False check for enemy
+            pos: (x, y) position of the bomb to be placed
         :return
             int: number of moves to safety, returns -1 if there are no safe tiles.
         """
-        state = dict(env_state)
-        state['bomb_pos'].append(state['self_pos'])
-        self.update_bombs(state)
-        danger_zone = self.get_danger_zone(env_state)
-        safe_tile = self.get_nearest_safe_tile(state)
+        bombs = {}
+        for key in self.known_bombs.keys():
+            bomb = self.known_bombs[key]
+            bombs[key] = bomb.copy()
+        if pos is None:
+            pos = env_state['self_pos']
+        # bombs[pos] = [30, self.agent_strength, pos]
+        self.update_bombs(env_state, [pos])
+        safe_tile = self.get_nearest_safe_tile(env_state, me=me)
+        self.known_bombs = bombs
 
 
         if safe_tile is None:
@@ -699,6 +669,7 @@ class TestAgent:
             return shortest_path
         return None
 
+    # TOO SLOW, like way to slow.
     def corner_enemy(self, env_state, solid_map):
         """This function looks at the current state and tries to find a position to place a bomb such that the enemy
          will have as few places to go as possible.
@@ -714,28 +685,40 @@ class TestAgent:
 
          Specifics: position much be reachable without placing bombs.
         """
-        tile = None
+        path = None
         safety = self.get_nearest_safe_tile(env_state, me=False)
         our_cost = 0
+        if safety is None:
+            return env_state['self_pos'], -1, 0
         opp_tile, opp_base_cost = self.get_shortest_path_to(env_state, safety, me=False)
-        print(self.env.box_map.shape)
-        for x, y in zip(range(self.env.width), range(self.env.height)):
+        for x in range(self.env.width):
+            y = env_state['opponent_pos'][0][1]
             if solid_map[x][y] == 1:
                 continue
             tmp_tile, tmp_cost = self.get_shortest_path_to(env_state, f"{x}-{y}")
             if tmp_cost < 30:
-                cost = self.check_place_bomb(env_state, me=False)
+                cost = self.check_place_bomb(env_state, pos=(x, y), me=False)
                 if cost == -1:
-                    return tmp_tile, cost, tmp_tile
+                    return tmp_tile, cost, tmp_cost
                 if cost > opp_base_cost:
-                    tile = tmp_tile
+                    path = tmp_tile
+                    opp_base_cost = cost
+                    our_cost = tmp_cost
+        for y in range(self.env.height):
+            x = env_state['opponent_pos'][0][0]
+            if solid_map[x][y] == 1:
+                continue
+            tmp_tile, tmp_cost = self.get_shortest_path_to(env_state, f"{x}-{y}")
+            if tmp_cost < 30:
+                cost = self.check_place_bomb(env_state, pos=(x, y), me=False)
+                if cost == -1:
+                    return tmp_tile, cost, tmp_cost
+                if cost > opp_base_cost:
+                    path = tmp_tile
                     opp_base_cost = cost
                     our_cost = tmp_cost
 
-
-        print("safety", safety)
-
-        return tile, opp_base_cost, our_cost
+        return path, opp_base_cost, our_cost
 
     def act(self, env_state):
 
@@ -752,8 +735,6 @@ class TestAgent:
 
         tic = time.perf_counter()
 
-        debug_print = True
-
         if debug_print: print("\n\nPREINTING MY BUILLSHIT HERE")
 
         if debug_print: print("UPDATEING")
@@ -764,7 +745,7 @@ class TestAgent:
         # update bombs
         self.update_bombs(env_state)
         # get dangerzone
-        danger_zone = self.get_danger_zone(env_state)
+        danger_zone = self.get_danger_zone(env_state).copy()
         # get agent pos
         agent_pos = env_state['self_pos']
         enemy_pos = env_state['opponent_pos']
@@ -773,7 +754,9 @@ class TestAgent:
         solid_map = np.logical_or(self.env.box_map, self.env.wall_map)
 
         # Where to place bomb
-        bomb_pos, enemy_cost, cost = self.corner_enemy(env_state, solid_map)
+        if debug_print: print(f"known bombs before, {self.known_bombs}")
+        bomb_path, enemy_cost, cost = self.corner_enemy(env_state, solid_map)
+        if debug_print: print(f"known bombs after, {self.known_bombs}")
 
         # Agent is on opponent, and there is a bomb
 
@@ -781,7 +764,16 @@ class TestAgent:
         enemy_pos_string = f"{enemy_pos[0][0]}-{enemy_pos[0][1]}"
         path_to_enemy, temp_distance = self.get_shortest_path_to(env_state, enemy_pos_string)
         path_to_closest_upers = self.get_closest_upgrade(env_state)
-        objective_path = path_to_closest_upers if path_to_closest_upers is not None else path_to_enemy
+        objective = 'safety'
+        objective_path = None
+        if path_to_closest_upers is not None:
+            objective_path = path_to_closest_upers
+        elif bomb_path is not None:
+            objective = 'bomb'
+            objective_path = bomb_path
+        else:
+            objective = 'bomb'
+            objective_path = path_to_enemy
 
         if len(objective_path) > 1:
             next_tile = objective_path[1]
@@ -795,7 +787,48 @@ class TestAgent:
 
         # SETUP END
 
-
+        """
+        New decision making:
+        
+        objective_set - boolean: True if the bot currently has an objective
+        
+        objective - keyword to tell the agent what plan it is currently executing
+        (eg. ['move_to_safety_critical', 'set_trap', 'get_uppers', /
+        'restrict_opponent', 'hunt_opponent', 'move_to_safety', 'NOP'])
+        for objective in objectives:
+            if condition is met:
+                set objective
+        
+        calculate objective needs
+        do objective
+        
+        objectives - list: [objective (string), ..., objective (string)] list of strings of possible objectives for the bot
+        This list will be ordered so that when the bot iterates over the list it will stop when it finds an objective
+        it can achieve
+        
+        planned moves: list: [Bombots.UP, Bombots.NOP, ...] list of planned moves
+        
+        #agent needs a strict reason to stay in danger_zone
+        if agent in danger_zone:
+            if agent needs to move to safety: (check if planned moves will leave you in danger_zone)
+                move towards safety
+            if agent has reason to stay in danger_zone: (check if current plan is still valid)
+                follow plan
+            else:
+                move towards safety
+        
+        #Agent is not in danger_zone and looking to gain small advantages over its opponent...
+        # ... or to come up with a plan to DESTROY his enemies
+        if objective_set:
+            if objective is still valid:
+                follow plan
+            else:
+                objective_set = False
+        objective = get_objective(objectives, env_state, *args)
+        objective.get_next_step()
+        
+        
+        """
 
         # DECISION MAKING
 
@@ -850,8 +883,14 @@ class TestAgent:
                     else:
                         action = Bombots.NOP
             else:
-                action = self.get_movement_direction(agent_pos, next_tile)
-                if debug_print: print("move towards enemy")
+                if env_state['self_pos'] == next_tile and objective == 'bomb':
+                    if self.check_place_bomb(env_state) != -1:
+                        action = Bombots.BOMB
+                    else:
+                        action = Bombots.NOP
+                else:
+                    action = self.get_movement_direction(agent_pos, next_tile)
+                    if debug_print: print("move towards enemy")
 
 
 
