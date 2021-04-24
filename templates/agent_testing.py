@@ -669,7 +669,7 @@ class TestAgent:
             return shortest_path
         return None
 
-    # TOO SLOW, like way to slow.
+    # TOO SLOW, like a little to slow.
     def corner_enemy(self, env_state, solid_map):
         """This function looks at the current state and tries to find a position to place a bomb such that the enemy
          will have as few places to go as possible.
@@ -700,7 +700,7 @@ class TestAgent:
                 cost = self.check_place_bomb(env_state, pos=(x, y), me=False)
                 if cost == -1:
                     return tmp_tile, cost, tmp_cost
-                if cost > opp_base_cost:
+                if cost - tmp_cost > opp_base_cost:
                     path = tmp_tile
                     opp_base_cost = cost
                     our_cost = tmp_cost
@@ -769,6 +769,7 @@ class TestAgent:
         if path_to_closest_upers is not None:
             objective_path = path_to_closest_upers
         elif bomb_path is not None:
+            print(bomb_path)
             objective = 'bomb'
             objective_path = bomb_path
         else:
