@@ -14,15 +14,15 @@ if '--novid' in sys.argv:
 
 env = Bombots(
     scale       = 64,                    # Size of game tiles (in pixels)
-    framerate   = 10,                    # Frames per second, set this to 0 for unbounded framerate
+    framerate   = 0,                    # Frames per second, set this to 0 for unbounded framerate
     state_mode  = Bombots.STATE_DICT,    # So the state is returned as a dictionary
     verbose     = True,                  # Useful printing during execution
-    render_mode = Bombots.RENDER_GFX_RGB # Change this to Bombots.NO_RENDER if you remove the render call
+    render_mode = Bombots.NO_RENDER # Change this to Bombots. if you remove the render call RENDER_GFX_RGB
 )
 
 # agents = [TestAgent(env), NOPAgent(env)]
 # agents = [TestAgent(env), RuleBasedAgent(env)]
-agents = [TestAgent(env), NOPAgent(env)]
+agents = [TestAgent(env), Agentv_1_1(env)]
 # agents = [BeatNopAgent(env), RuleBasedAgent(env)]
 
 if '--test' not in sys.argv:
@@ -31,8 +31,9 @@ if '--test' not in sys.argv:
     while True:
         states, rewards, done, info = env.step([agents[i].act(states[i]) for i in range(len(agents))])
         
-        env.render() # Comment out this call to train faster
+        #env.render() # Comment out this call to train faster
         
         if done:
             states = env.reset()
+            agents[0].reset()
             print(f"player1 wins: {info['player1']['wins']}, player2 wins: {info['player2']['wins']}")
